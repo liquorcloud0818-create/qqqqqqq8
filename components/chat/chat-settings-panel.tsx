@@ -1615,6 +1615,13 @@ export function ChatSettingsPanel({
                     </label>
                 </div>
 
+                <div className="menu-group">
+                    <button type="button" className="menu-item" onClick={() => setShowScreenEffects(true)}>
+                        <div className="menu-label-group"><span className="menu-label">全屏特效</span><span className="menu-desc">总开关、表情雨及内置特效；关闭后不会注入AI提示词</span></div>
+                        <div className="menu-right"><ChevronRight size={16} /></div>
+                    </button>
+                </div>
+
                 {/* Backgrounds & UI */}
                 <div className="menu-group">
                     <label className="menu-item">

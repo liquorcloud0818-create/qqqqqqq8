@@ -1,14 +1,21 @@
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 export type MediaPreference = "text" | "balanced" | "free";
+export type PhotoDeliveryMode = "text" | "auto";
 export const MEDIA_APPS = { chat: "Chat", moments: "朋友圈", lysn: "LYSN", twitter: "X", weverse: "WVS Artist" } as const;
 export type MediaApp = keyof typeof MEDIA_APPS;
-export type MediaPreferences = { global: MediaPreference; apps: Partial<Record<MediaApp, MediaPreference>> };
+export type MediaPreferences = { global: MediaPreference; apps: Partial<Record<MediaApp, MediaPreference>>; delivery: Partial<Record<MediaApp, PhotoDeliveryMode>> };
+export const DEFAULT_PHOTO_DELIVERY: Record<MediaApp, PhotoDeliveryMode> = { chat: "text", lysn: "text", moments: "auto", twitter: "auto", weverse: "auto" };
+export function effectivePhotoDelivery(appId: string): PhotoDeliveryMode {
+  if (!(appId in DEFAULT_PHOTO_DELIVERY)) return "text";
+  const value = loadMediaPreferences().delivery[appId as MediaApp];
+  return value === "text" || value === "auto" ? value : DEFAULT_PHOTO_DELIVERY[appId as MediaApp];
+}
 const KEY = "ai_phone_media_preferences_v1";
 const RECENT = "ai_phone_media_decisions_v1";
 registerKvMigration(KEY); registerKvMigration(RECENT);
 export function loadMediaPreferences(): MediaPreferences {
-  try { const value = JSON.parse(kvGet(KEY) || "{}"); return { global: valid(value.global) ? value.global : "text", apps: Object.fromEntries(Object.entries(value.apps || {}).filter(([key, mode]) => key in MEDIA_APPS && valid(mode))) }; }
-  catch { return { global: "text", apps: {} }; }
+  try { const value = JSON.parse(kvGet(KEY) || "{}"); return { global: valid(value.global) ? value.global : "text", apps: Object.fromEntries(Object.entries(value.apps || {}).filter(([key, mode]) => key in MEDIA_APPS && valid(mode))), delivery: Object.fromEntries(Object.entries(value.delivery || {}).filter(([key, mode]) => key in MEDIA_APPS && (mode === "text" || mode === "auto"))) }; }
+  catch { return { global: "text", apps: {}, delivery: {} }; }
 }
 function valid(mode: unknown): mode is MediaPreference { return mode === "text" || mode === "balanced" || mode === "free"; }
 export function saveMediaPreferences(value: MediaPreferences): void { kvSet(KEY, JSON.stringify(value)); }

@@ -1,3 +1,4 @@
+import { effectivePhotoDelivery } from "./media-preferences";
 import { photoStorySearchText } from "./photo-story-data";
 import { getChatImageFromIndexedDB, saveChatImageToIndexedDB } from "./chat-asset-storage";
 import { generateImageFromConfiguredApi } from "./image-generation-service";
@@ -210,7 +211,9 @@ async function generateMedia(request: MediaResolverRequest, intentKind: MediaInt
 export async function resolveMediaForUse(request: MediaResolverRequest): Promise<MediaResolverResult | null> {
   const description = request.description.trim();
   if (!description) return null;
-  const socialAuto = (!request.mode || request.mode === "auto") && ["moments", "twitter_main", "twitter_alt", "wvs_artist"].includes(request.channel);
+  // Automatically generate ONLY when the specific app chooses it. Text placeholders
+  // remain valid even with the image-generation provider disabled.
+  const socialAuto = (!request.mode || request.mode === "auto") && effectivePhotoDelivery(request.appId) === "auto";
   const generateOrPlain = async () => { const result = await generateMedia(request, request.intentKind || "other").catch(() => null); return result?.imageUrl ? result : null; };
   if (request.mode === "text") return { source: "text_placeholder", placeholderDescription: description };
   const preferences = loadPhotoLibrary().preferences;

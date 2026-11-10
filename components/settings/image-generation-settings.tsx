@@ -491,8 +491,8 @@ export function ImageGenerationSettings() {
                         <Sparkles size={22} strokeWidth={1.75} />
                     </span>
                     <span className="settings-tools-menu-copy">
-                        <span className="menu-label appearance-menu-item-label">启用自动生图</span>
-                        <span className="menu-desc settings-tools-menu-desc">角色输出照片标签时自动调用图像生成 API。</span>
+                        <span className="menu-label appearance-menu-item-label">启用生图功能</span>
+                        <span className="menu-desc settings-tools-menu-desc">允许图片生成 API 被手动操作及已选择「自动生图」的平台调用；是否自动生成由 AI 行为分别控制。</span>
                     </span>
                     <span className="menu-right settings-tools-menu-toggle">
                         <Toggle checked={settings.enabled} onChange={(enabled) => updateSettings({ enabled })} className="settings-toggle-control" />

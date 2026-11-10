@@ -707,7 +707,7 @@ export const DEFAULT_NOVELAI_PRESET: import("./settings-types").NovelAiPreset = 
 };
 
 export const DEFAULT_IMAGE_GENERATION_SETTINGS: ImageGenerationSettings = {
-    enabled: false,
+    enabled: true,
     provider: "openai",
     requestMode: "direct",
     apiKey: "",

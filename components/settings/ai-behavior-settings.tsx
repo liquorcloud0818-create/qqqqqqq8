@@ -2,7 +2,7 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { ChevronRight, X } from "lucide-react";
 import { SettingsContext } from "../phone-settings-app";
-import { loadMediaPreferences, saveMediaPreferences, MEDIA_APPS, type MediaApp, type MediaPreference, type MediaPreferences } from "@/lib/media-preferences";
+import { loadMediaPreferences, saveMediaPreferences, MEDIA_APPS, type MediaApp, type MediaPreference, type PhotoDeliveryMode, type MediaPreferences, DEFAULT_PHOTO_DELIVERY } from "@/lib/media-preferences";
 import { DEFAULT_SCHEDULE_PROMPTS, loadSchedulePrompts, saveSchedulePrompt, type SchedulePromptKind } from "@/lib/schedule-prompt-settings";
 import { DEFAULT_THEQOO_PROMPT, loadTheqooPrompt, saveTheqooPrompt } from "@/lib/theqoo-prompt-settings";
 const options = <><option value="text">文字优先</option><option value="balanced">平衡</option><option value="free">自由判断</option></>;
@@ -23,9 +23,12 @@ export function AiBehaviorSettings() {
  <section><p className="settings-menu-section-title">内容偏好</p><div className="settings-option-group">
  <label className="ai-media-row"><span>AI 配图倾向</span><select value={value.global} onChange={e=>update({...value,global:e.target.value as MediaPreference})}>{options}</select></label>
  <button type="button" className="ai-media-row" onClick={()=>setApps(true)}>应用单独设置<ChevronRight size={16}/></button></div>
- <p className="menu-desc ai-media-note">控制 AI 主动内容的配图倾向。</p></section>
+ <p className="menu-desc ai-media-note">配图倾向决定 AI 想不想发照片；各平台的图片处理方式决定缺图时是否自动生图。两者互不影响。</p></section>
  <section><p className="settings-menu-section-title">内容生成提示词</p><div className="settings-option-group">{(["calendar","theqoo"] as const).map(kind=><button key={kind} className="ai-media-row" type="button" onClick={()=>{setDraft(kind==="theqoo"?loadTheqooPrompt():loadSchedulePrompts()[kind]);setEditing(kind);setNotice("");}}><span>{names[kind]}<small className="menu-desc settings-row-description">{kind==="calendar"?"工作、兴趣、私人安排与公开节点":"论坛选题、网友生态与评论风格"}</small></span><ChevronRight size={16}/></button>)}</div><p className="menu-desc ai-media-note">修改内容方向，下次生成时生效。已有内容保持不变。</p></section>
- </> : <div className="settings-option-group">{Object.entries(MEDIA_APPS).map(([id,label])=><label key={id} className="ai-media-row"><span>{label}</span><select value={value.apps[id as MediaApp]||"inherit"} onChange={e=>{const next={...value.apps};if(e.target.value==="inherit")delete next[id as MediaApp];else next[id as MediaApp]=e.target.value as MediaPreference;update({...value,apps:next});}}><option value="inherit">跟随全局</option>{options}</select></label>)}</div>}
+ </> : <div className="settings-option-group">{Object.entries(MEDIA_APPS).map(([id,label]) => <div key={id} className="ai-media-platform-settings">
+   <label className="ai-media-row"><span>{label} · 配图倾向</span><select value={value.apps[id as MediaApp]||"inherit"} onChange={e=>{const next={...value.apps};if(e.target.value==="inherit")delete next[id as MediaApp];else next[id as MediaApp]=e.target.value as MediaPreference;update({...value,apps:next});}}><option value="inherit">跟随全局</option>{options}</select></label>
+   <label className="ai-media-row"><span>{label} · 缺图处理</span><select value={value.delivery[id as MediaApp] || DEFAULT_PHOTO_DELIVERY[id as MediaApp]} onChange={e=>update({...value,delivery:{...value.delivery,[id]:e.target.value as PhotoDeliveryMode}})}><option value="text">优先文字图 · 可手动生图</option><option value="auto">自动生图 · 失败保留文字</option></select></label>
+ </div>)}</div>}
  {notice && <p role="status" className="menu-desc ai-media-note">{notice}</p>}
  {editing && <div className="modal-overlay settings-prompt-overlay" onClick={()=>setEditing(null)}><section role="dialog" aria-modal="true" aria-labelledby="schedule-prompt-title" className="modal-dialog settings-prompt-dialog" onClick={e=>e.stopPropagation()} onKeyDown={e=>{if(e.key!=="Tab")return;const nodes=e.currentTarget.querySelectorAll<HTMLElement>('button,textarea');const first=nodes[0],last=nodes[nodes.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}}>
  <div className="settings-dialog-heading"><h3 id="schedule-prompt-title">{names[editing]}提示词</h3><button type="button" aria-label="关闭" onClick={()=>setEditing(null)}><X size={20}/></button></div>

@@ -73,7 +73,7 @@ export async function generateLysn(characterId: string, history: LysnMessage[], 
     (mode==="new"||mode==="reply")?`本人日程（限制优先于活跃度）：\n${calendar.summary||"当前无日程限制"}\n${calendar.level===2?"只能短暂回复，本轮最多一两句。":"空闲时按自己的来访、阅读习惯决定发不发。"}`:"历史开场白和生日内容只依据指定日期可知的事实，不借用当前日程。",
     "自然地按人设发短消息，不要总写公告。original 必须使用角色本人最自然的语言（例如人设为韩国人的角色主要用韩语，日本人的角色主要用日语）；translated 是忠实简体中文翻译，原文中文则相同。语音逐字稿也遵守这一要求，不能因为译文是中文就把原文改成中文。",
     "艺人可以使用 {{nickname}} 占位符自然称呼每位订阅者；系统会为每位订阅者替换，绝不能把某人的私密姓名写进面向全部粉丝的文本。",
-    mode === "birthday" ? "生日留言写成适合卡片的一段话，可以亲切但不伪装你和这个订阅者私下相识。" : "频道里的匿名粉丝留言可以作为灵感，但不必一条一条轮流答复；像本人随手分享近况那样，自然时可连发短句，安静时也可不发。别把每次出现都写成有问必答的私聊。",
+    mode === "birthday" ? "生日留言写成适合卡片的一段话，可以亲切但不伪装你和这个订阅者私下相识。" : "这是面向大量订阅者的频道，不是一对一私聊。你发送的时间可以刚好和某位粉丝同步，甚至立刻再发好几条；但内容大多数时候应由自己的近况、思路、心情驱动，不默认承接刚收到的留言。看到留言也可以不答，偶尔精准回答才显得自然。可以引用你模拟的其他匿名粉丝留言；模拟粉丝不等于当前 User，不能混入其真实聊天或记忆。",
     mode === "opening" ? configuredOpener ? "这是本次订阅进入频道显示的开场白。用户提供了开场白内容：保持意思和语气，用角色本人自然的语言写 original；用户已用角色语言写成原文时保留原文措辞；translated 是忠实的简体中文翻译。只写一条，不要增添新信息。" : "这是本次订阅进入频道显示的开场白，写一条符合人设的开场消息。它不算正式到场或回复，也不要提及已经读到粉丝来信。" : "",
     mode === "opening" && historicalDate ? `这条开场白要放在订阅历史的 ${historicalDate}；不要把现实今天才发生的事情说成当年就发生，也不要声称已经认识当前订阅者。` : "",
     mode === "birthday" ? `这是订阅者 ${birthdayYear || "这一"} 年的生日卡片。只以当年为背景写符合人设的祝福，不提那一年之后才发生的事；可以使用 {{nickname}} 占位符；不要声称现实今天就是生日，用户可能在日历回看往年的卡片。` : "",
@@ -90,10 +90,10 @@ export async function generateLysn(characterId: string, history: LysnMessage[], 
     "photo 必须填写照片描述，voice 的 original 是逐字稿。",
     `频道最近消息：\n${timeline || "暂无消息"}`,
     ...history.filter(message => message.sender === "artist" && message.photoStoryContext).slice(-3).map(message => photoStoryReplyContext(message.photoStoryContext, characterId)).filter(Boolean),
-    fanMessage ? `最近收到的匿名粉丝来信：${fanMessage}` : "",
+    fanMessage ? `频道粉丝留言样本（不代表一定被你看见或必须回应；众多留言之一）：${fanMessage}` : "",
     configuredOpener ? `用户设定的开场白内容（仅作开场白，不是粉丝来信）：${configuredOpener}` : "",
   ].filter(Boolean).join("\n") };
-  const messages: LLMMessage[] = [...prompt, instruction, { role: "user", content: mode === "opening" ? configuredOpener ? "按用户设定内容，生成角色语言原文和简体中文译文的开场白。" : "生成一次性频道开场白。" : mode === "birthday" ? "今天生日，发送一条生日祝福。" : mode === "reply" ? "判断艺人现在是否想公开发消息，如想发请自然回应匿名反馈。" : "判断艺人现在是否想公开发新消息。" }];
+  const messages: LLMMessage[] = [...prompt, instruction, { role: "user", content: mode === "opening" ? configuredOpener ? "按用户设定内容，生成角色语言原文和简体中文译文的开场白。" : "生成一次性频道开场白。" : mode === "birthday" ? "今天生日，发送一条生日祝福。" : mode === "reply" ? "判断艺人此刻是否想在面向许多粉丝的频道发消息；如果想发，请优先按自己正在经历、想聊的事展开，不必回应任何一条最新来信。即便紧接着粉丝发送，也不意味着你读到了那句话。" : "判断艺人现在是否想公开发新消息。" }];
   const requestMeta = { characterName: `Lysn:${character.name}`, userName: "订阅粉丝" };
   const requestOptions = { appId: "lysn", translationCharacterId: characterId, appTags: ["lysn", "bubble"], skipOutputRegex: true, skipWorldline: Boolean(historicalDate)||mode==="birthday" };
   let raw = await sendLLMRequest(api, preset, messages, regexes, requestMeta, requestOptions);

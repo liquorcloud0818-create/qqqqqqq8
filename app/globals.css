@@ -128,3 +128,8 @@
 /* resource023: disclosure typography follows the surrounding app controls. */
 .social-disclosure.social-disclosure>strong{display:block;font-family:inherit;font-size:calc(12px * var(--app-text-scale,1));font-weight:600;line-height:1.65;margin:0 0 5px}
 .social-disclosure.social-disclosure>p{font-family:inherit;font-size:calc(11px * var(--app-text-scale,1));font-weight:400;line-height:1.7;margin:0 0 10px;color:inherit;opacity:.58}
+
+/* Compact screenshot saved-feedback toast: never increases action panel height. */
+.chat-screenshot-preview{position:relative;overflow:visible}
+.chat-screenshot-save-toast{position:absolute;z-index:12;bottom:81px;left:50%;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;gap:6px;max-width:90%;white-space:nowrap;padding:8px 12px;border-radius:999px;background:rgba(235,236,239,.96);color:#50535d;box-shadow:0 3px 14px #00000016;font-size:12px;line-height:1.4;pointer-events:none;animation:chat-saved-toast-in .17s ease-out both}
+@keyframes chat-saved-toast-in{from{opacity:0;transform:translate(-50%,5px)}to{opacity:1;transform:translate(-50%,0)}}

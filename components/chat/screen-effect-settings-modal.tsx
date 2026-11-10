@@ -8,6 +8,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Toggle } from "@/components/ui/form";
 import {
     BUILTIN_SCREEN_EFFECTS,
+    screenEffectsEnabled, setScreenEffectsEnabled,
     createChatScreenEffectRule,
     loadBuiltinScreenEffectSettings,
     loadChatScreenEffectRules,
@@ -22,6 +23,7 @@ import { ChatScreenEffectOverlay, type ActiveScreenEffect } from "./chat-screen-
 
 export function ScreenEffectSettingsModal({ onClose }: { onClose: () => void }) {
     const [tab, setTab] = useState<"rain" | "builtin">("rain");
+    const [masterEnabled, setMasterEnabled] = useState(() => screenEffectsEnabled());
     const [rules, setRules] = useState<ChatScreenEffectRule[]>(() => loadChatScreenEffectRules());
     const [builtins, setBuiltins] = useState<Record<BuiltinScreenEffectType, BuiltinScreenEffectSetting>>(
         () => loadBuiltinScreenEffectSettings(),
@@ -53,6 +55,7 @@ export function ScreenEffectSettingsModal({ onClose }: { onClose: () => void }) 
                     <p className="screen-fx-subtitle">消息包含触发词即自动播放，全部会话通用</p>
                 </div>
 
+                <div className="screen-fx-card screen-fx-master" style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:12,marginBottom:10}}><div><strong>启用全屏特效</strong><p className="screen-fx-note" style={{margin:0}}>关闭时动画停用，AI提示词也不注入</p></div><Toggle checked={masterEnabled} onChange={value=>{ setMasterEnabled(value); setScreenEffectsEnabled(value); }} /></div>
                 <div className="screen-fx-tabs" role="tablist">
                     <button role="tab" aria-selected={tab === "rain"} {...(tab === "rain" ? { "data-active": "" } : {})} onClick={() => setTab("rain")}>
                         表情雨
@@ -88,7 +91,7 @@ export function ScreenEffectSettingsModal({ onClose }: { onClose: () => void }) 
                                         />
                                     </label>
                                     <div className="screen-fx-card-actions">
-                                        <button className="screen-fx-pill-btn" onClick={() => playPreview("emoji_rain", rule.emojis)}>
+                                        <button className="screen-fx-pill-btn" onClick={() => { if(masterEnabled) playPreview("emoji_rain", rule.emojis); }}>
                                             预览
                                         </button>
                                         <button className="screen-fx-icon-btn" aria-label="删除规则" onClick={() => updateRules(rules.filter(r => r.id !== rule.id))}>
@@ -110,7 +113,7 @@ export function ScreenEffectSettingsModal({ onClose }: { onClose: () => void }) 
                                     <div className="screen-fx-card-row">
                                         <span className="screen-fx-icon">{effect.icon}</span>
                                         <span className="screen-fx-name">{effect.name}</span>
-                                        <button className="screen-fx-pill-btn" onClick={() => playPreview(effect.type, "")}>
+                                        <button className="screen-fx-pill-btn" onClick={() => { if(masterEnabled) playPreview(effect.type, ""); }}>
                                             预览
                                         </button>
                                         <Toggle

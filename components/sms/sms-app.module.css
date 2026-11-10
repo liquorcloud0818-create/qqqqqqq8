@@ -155,3 +155,11 @@
 .app .chatHeader .personName{display:block;position:relative;width:max-content;max-width:calc(100% - 28px);padding:0;overflow:visible;text-align:center}
 .app .chatHeader .personNameText{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .app .chatHeader .personName>svg{position:absolute;left:calc(100% + 2px);right:auto;top:50%;transform:translateY(-50%);width:12px;height:12px}
+
+/* Consistent iOS-style boolean switches, not blue checkbox squares. */
+.settings h3{font-size:calc(15px*var(--app-text-scale,1));font-weight:650}
+.settings .toggleRow{font-size:calc(14px*var(--app-text-scale,1));font-weight:500}
+.settings .toggleRow input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:none;width:46px!important;height:27px!important;margin:0!important;padding:0!important;border:0!important;border-radius:99px!important;background:#dadde2!important;position:relative;transition:background .18s ease}
+.settings .toggleRow input[type=checkbox]::after{content:"";position:absolute;left:2px;top:2px;width:23px;height:23px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0002;transition:transform .18s ease}
+.settings .toggleRow input[type=checkbox]:checked{background:#34c759!important}
+.settings .toggleRow input[type=checkbox]:checked::after{transform:translateX(19px)}

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
+  Download,
   MoreHorizontal,
   ChevronLeft,
   Image as ImageIcon,
@@ -51,6 +52,7 @@ import { PhotoStoryEditor } from "./photo-story-editor";
 import { PhotoTagEditor } from "./photo-tag-editor";
 import { PhotoAlbumSheet } from "./photo-album-sheet";
 import { PhotoUrlSheet } from "./photo-url-sheet";
+import { saveLibraryImageToDevice } from "@/lib/photo-device-save";
 import { setPhotoAlbumMembership } from "@/lib/photo-library-storage";
 
 type Props = {
@@ -729,9 +731,12 @@ export function PhotosApp({ onClose, onNotice }: Props) {
             <strong>{detailPhoto.displayName || "照片"}</strong>
             <span>{formatPhotoDate(detailPhoto.createdAt)}</span>
           </div>
-          <button type="button" className="photos-round-btn photos-danger-btn" onClick={() => void deleteDetailPhoto()} aria-label="删除照片">
-            <Trash2 size={18} />
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <button type="button" className="photos-round-btn" disabled={!imageUrl}
+              onClick={() => void saveLibraryImageToDevice(imageUrl, detailPhoto.originalName || detailPhoto.displayName || "Float照片").then(message => onNotice?.(message)).catch(error => onNotice?.(error instanceof Error ? error.message : "保存失败"))}
+              aria-label="保存图片到手机" title="保存图片到手机"><Download size={19}/></button>
+            <button type="button" className="photos-round-btn photos-danger-btn" onClick={() => void deleteDetailPhoto()} aria-label="删除照片"><Trash2 size={18}/></button>
+          </div>
         </header>
 
         <main className="photos-detail-scroll">

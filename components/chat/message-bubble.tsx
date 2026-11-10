@@ -2,11 +2,12 @@
 import {TwitterFrozenCard,TwitterSnapshotWindow} from "@/components/twitter/twitter-sharing";
 import { WeverseLiveInviteCard } from "./weverse-live-invite-card";
 import { LivePhotoBubble } from "./live-photo";
+import { PHOTO_DECK_THRESHOLD, photoDeckLayer } from "@/lib/photo-deck-motion";
 import {ReversePhoneRecord} from "./reverse-phone-overlay";
 import { ForwardedChatBubble } from "./forwarded-chat-record";
 import { chatContactDisplayName, chatPokeDisplayName } from "@/lib/communication-display-name";
 
-import { useState, useEffect, useCallback, useRef, useMemo, memo, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
 import { findCustomStickerByName, resolveCustomStickerUrl } from "@/lib/custom-sticker-storage";
 import { isMediaStoreRef, loadMediaObjectUrl } from "@/lib/media-cache-storage";
 import { getChatImageFromIndexedDB } from "@/lib/chat-asset-storage";
@@ -1388,78 +1389,68 @@ function ChatPhotoDeck({ messages, onUpdate, characterId }: { messages: ChatMess
     const [active, setActive] = useState(0);
     const [expanded, setExpanded] = useState(false);
     const [dragX, setDragX] = useState(0);
-    const [direction, setDirection] = useState<1 | -1>(1);
-    const [flipping, setFlipping] = useState<1 | -1 | null>(null);
-    const startX = useRef<number | null>(null);
-    const startY = useRef<number | null>(null);
-    const flipTimer = useRef<number | null>(null);
+    const [dragging, setDragging] = useState(false);
+    const [settling, setSettling] = useState(false);
+    const pointer = useRef<{ id: number; x: number; y: number } | null>(null);
+    const settleTimer = useRef<number | null>(null);
     const suppressClick = useRef(false);
-    useEffect(() => () => { if (flipTimer.current !== null) window.clearTimeout(flipTimer.current); }, []);
-    const current = Math.min(active, messages.length - 1);
-    const canFlip = (step: 1 | -1) => current + step >= 0 && current + step < messages.length;
-    const flip = (step: 1 | -1) => {
-        if (flipping || !canFlip(step)) { setDragX(0); return; }
-        setDirection(step);
-        setFlipping(step);
-        setDragX(step === 1 ? -220 : 220);
-        flipTimer.current = window.setTimeout(() => {
-            setActive(index => Math.max(0, Math.min(messages.length - 1, index + step)));
-            setDragX(0);
-            setFlipping(null);
-            flipTimer.current = null;
-        }, 230);
+    const mine = messages[0]?.role === 'user';
+    useEffect(() => () => { if (settleTimer.current !== null) window.clearTimeout(settleTimer.current); }, []);
+    const current = Math.max(0, Math.min(active, messages.length - 1));
+    const canFlip = (step: number) => current + step >= 0 && current + step < messages.length;
+    const finish = (step: -1 | 1) => {
+        if (settling || !canFlip(step)) { setDragX(0); return; }
+        setSettling(true);
+        setActive(index => Math.max(0, Math.min(messages.length - 1, index + step)));
+        setDragX(0);
+        if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+        settleTimer.current = window.setTimeout(() => { setSettling(false); settleTimer.current = null; }, 410);
     };
-    if (expanded) return <div className="chat-photo-deck-expanded" onClick={event => event.stopPropagation()}>
+    const onDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (settling || pointer.current) return;
+        pointer.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+        suppressClick.current = false;
+        setDragging(true);
+        event.currentTarget.setPointerCapture(event.pointerId);
+    };
+    const onMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+        const start = pointer.current;
+        if (!start || start.id !== event.pointerId) return;
+        const dx = Math.max(-160, Math.min(160, event.clientX - start.x));
+        const dy = Math.abs(event.clientY - start.y);
+        if (dy > Math.abs(dx)) { setDragX(0); return; }
+        setDragX(!canFlip(dx < 0 ? 1 : -1) ? dx * .28 : dx);
+    };
+    const onRelease = (event: ReactPointerEvent<HTMLDivElement>) => {
+        const start = pointer.current;
+        if (!start || start.id !== event.pointerId) return;
+        pointer.current = null;
+        setDragging(false);
+        const dy = Math.abs(event.clientY - start.y);
+        const dx = dragX;
+        if (Math.abs(dx) > 8 || dy > 8) suppressClick.current = true;
+        if (dy > Math.abs(dx) && dy > 8) { setDragX(0); return; }
+        if (dx <= -PHOTO_DECK_THRESHOLD && canFlip(1)) finish(1);
+        else if (dx >= PHOTO_DECK_THRESHOLD && canFlip(-1)) finish(-1);
+        else setDragX(0);
+    };
+    if (expanded) return <div className={`chat-photo-deck-expanded ${mine ? "chat-photo-deck-expanded--mine" : "chat-photo-deck-expanded--artist"}`} onClick={event => event.stopPropagation()}>
         <div className="chat-photo-deck-grid">{messages.map(msg => <div className="chat-photo-deck-item" key={msg.id}>
             <ImageBubble msg={msg} onUpdate={onUpdate} characterId={characterId} />
         </div>)}</div>
         <button type="button" className="chat-photo-deck-toggle" onClick={() => setExpanded(false)}>收起照片</button>
     </div>;
-    return <div className="chat-photo-deck" role="group" aria-label={`${messages.length} 张照片，左右滑动翻页`} onClick={event => event.stopPropagation()}>
-        <div className="chat-photo-deck-stack" style={{ width: Math.min(204, 184 + messages.length * 6) }}>
-            {messages.map((_, depth) => {
-                // Keep every remaining card visible, even at the end of the stack.
-                const index = (current + depth * direction + messages.length * (depth + 1)) % messages.length;
-                const front = depth === 0;
-                const x = front ? dragX : flipping && depth === 1 ? 0 : depth * 6;
-                const y = front ? 0 : flipping && depth === 1 ? 0 : depth * 5;
-                const angle = front ? dragX / 15 : flipping && depth === 1 ? 0 : depth * 3;
-                return <div key={messages[index].id} className="chat-photo-deck-card"
-                    aria-hidden={!front} style={{ zIndex: messages.length - depth, transform: `translate(${x}px,${y}px) rotate(${angle}deg)`, transition: front && startX.current !== null && !flipping ? "none" : undefined, pointerEvents: front ? "auto" : "none" }}
-                    onClickCapture={front ? event => { if (suppressClick.current) { event.stopPropagation(); event.preventDefault(); suppressClick.current = false; } } : undefined}
-                    onPointerDown={front ? event => {
-                        if (flipping) return;
-                        startX.current = event.clientX; startY.current = event.clientY; suppressClick.current = false;
-                        // Leave text-only cards and the last picture's click on the inner preview.
-                        if (messages[index].mediaUrl && canFlip(1)) event.currentTarget.setPointerCapture(event.pointerId);
-                    } : undefined}
-                    onPointerMove={front ? event => {
-                        if (startX.current === null || flipping) return;
-                        const dx = Math.max(-150, Math.min(150, event.clientX - startX.current));
-                        const dy = Math.abs(event.clientY - (startY.current ?? event.clientY));
-                        if (dy > Math.abs(dx)) { setDragX(0); return; }
-                        const step = dx < 0 ? 1 : -1;
-                        setDragX(canFlip(step) ? dx : 0);
-                        if (Math.abs(dx) > 8 && canFlip(step)) setDirection(step);
-                    } : undefined}
-                    onPointerUp={front ? event => {
-                        if (startX.current === null) return;
-                        const dx = event.clientX - startX.current;
-                        const dy = Math.abs(event.clientY - (startY.current ?? event.clientY));
-                        startX.current = null; startY.current = null;
-                        if (Math.abs(dx) > 8 || dy > 8) suppressClick.current = true;
-                        if (dy > 8 && dy > Math.abs(dx)) { setDragX(0); return; }
-                        if (Math.abs(dx) > 28) { suppressClick.current = true; flip(dx < 0 ? 1 : -1); }
-                        else {
-                            setDragX(0);
-                            if (Math.abs(dx) < 8 && dy < 8 && messages[index].mediaUrl && canFlip(1) && event.currentTarget.hasPointerCapture(event.pointerId)) {
-                                suppressClick.current = true;
-                                flip(1);
-                            }
-                        }
-                    } : undefined}
-                    onPointerCancel={front ? () => { startX.current = null; startY.current = null; setDragX(0); } : undefined}>
-                    <ImageBubble msg={messages[index]} onUpdate={onUpdate} characterId={characterId} onDeckTap={front && canFlip(1) ? () => flip(1) : undefined} />
+    return <div className={`chat-photo-deck ${mine ? 'chat-photo-deck--mine' : ''}`} role="group" aria-label={`${messages.length} 张照片，左右滑动翻页`} onClick={event => event.stopPropagation()}>
+        <div className="chat-photo-deck-stack" onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onRelease}
+            onPointerCancel={event => { if (pointer.current?.id === event.pointerId) { pointer.current = null; setDragging(false); setDragX(0); } }}
+            onClickCapture={event => { if (suppressClick.current) { event.preventDefault(); event.stopPropagation(); suppressClick.current = false; } }}>
+            {messages.map((message, index) => {
+                const front = index === current;
+                const motion = photoDeckLayer(index, current, messages.length, dragX);
+                return <div key={message.id} className="chat-photo-deck-card" aria-hidden={!front}
+                    style={{ ...motion, transition: dragging ? 'none' : undefined }}>
+                    <ImageBubble msg={message} onUpdate={onUpdate} characterId={characterId}
+                        onDeckTap={front && canFlip(1) ? () => finish(1) : undefined} />
                 </div>;
             })}
         </div>
@@ -1592,14 +1583,14 @@ function ImageBubble({
         return (
             <>
                 <div
-                    className="chat-photo-card chat-photo-card--image rounded-none"
+                    className="chat-photo-card chat-photo-card--image"
                     style={{ cursor: "pointer" }}
                     onClick={e => { e.stopPropagation(); if (onDeckTap) onDeckTap(); else setShowPreview(true); }}
                 >
                     <img
                         src={resolvedUrl}
                         alt={label}
-                        className="chat-photo-card-image block max-w-[240px] max-h-[320px] w-auto h-auto"
+                        className="chat-photo-card-image block w-auto h-auto"
                     />
                 </div>
                 {previewAndDialog}

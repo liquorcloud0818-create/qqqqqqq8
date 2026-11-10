@@ -413,3 +413,41 @@
 .historyCard{display:flex;flex-direction:column;align-items:center;gap:6px;align-self:center;width:min(78%,240px);min-height:114px;margin:5px auto 14px;padding:19px 14px;border:1px solid #e8dcef;border-radius:17px;background:#f6f0ff;color:#473256;text-align:center;box-shadow:0 5px 16px #4b21630c}
 .historyCard>span{font-size:calc(11px*var(--app-text-scale,1));color:#925bc5;letter-spacing:1px}.historyCard>b{font-size:calc(15px*var(--app-text-scale,1))}.historyCard>small{font-size:calc(10px*var(--app-text-scale,1));color:#8e7b9e}
 .timelineNow{align-self:center;margin:10px auto 13px;color:#9b8da9;font-size:calc(11px*var(--app-text-scale,1));text-align:center}
+
+/* Resource 035: same approved tuck/shuffle motion as Chat, Lysn keeps lavender expand chip. */
+.stackWrap{gap:10px;max-width:100%;}
+.stackMine{flex-direction:row-reverse;}
+.photoDeck{flex:0 0 204px;width:204px;height:255px;touch-action:pan-y;}
+.photoDeck .photoCard{top:0;left:12px;width:180px;height:240px;overflow:hidden;border-radius:15px;outline:1px solid #43304f18;outline-offset:-1px;
+ box-shadow:0 5px 13px #33284420;transition:transform .41s cubic-bezier(.2,.82,.25,1),opacity .26s ease;will-change:transform;transform-origin:50% 50%;}
+.photoViewAll{background:#ede6f7;color:#795b95;border-radius:999px;white-space:nowrap;}
+/* Less distracting Lysn message metadata; keep the existing purple read receipt. */
+.messageMeta{font-size:calc(9px*var(--app-text-scale,1));}
+.mine .messageMeta time{font-size:calc(9px*var(--app-text-scale,1));}
+.mine .messageMeta .readReceipt{width:12px;height:12px;}
+.mine .messageMeta .readReceipt svg{width:8px;height:8px;}
+
+/* Single photo presentation matches Chat: no cropping, shared size cap and corners. */
+.app .photoBubbleOnly .photoButton{border-radius:15px;max-width:min(190px,62vw);overflow:hidden;}
+.app .photoBubbleOnly .photo{display:block;width:auto;max-width:100%;max-height:270px;height:auto;object-fit:contain;border-radius:15px;}
+
+/* Resource 038 Lysn compact cards, original photo ratios, sender avatar alignment */
+.stackWrap{gap:7px;max-width:100%;min-width:0;box-sizing:border-box}
+.photoDeck{flex:0 0 min(44vw,180px);width:min(44vw,180px);height:min(56vw,228px);min-width:0}
+.photoDeck .photoCard{top:8px;left:15px;width:calc(100% - 38px);height:calc(100% - 18px);border-radius:15px}
+.photoDeckControls{flex:0 0 auto;min-width:0}
+.photoExpanded{width:fit-content;max-width:min(74vw,250px)}
+.photoExpandedGrid{display:flex;flex-direction:column;width:fit-content;max-width:100%;gap:8px}
+.photoExpandedGrid button{display:block;flex:none;width:fit-content;max-width:100%;height:auto;aspect-ratio:auto;padding:0;overflow:hidden;background:transparent;border:0;border-radius:15px}
+.photoExpandedGrid img,.photoExpandedGrid .fallback{display:block;width:auto;max-width:min(74vw,250px);height:auto;max-height:320px;object-fit:contain;border-radius:15px}
+.photoExpandedGrid .photoTextCard{width:min(180px,68vw);height:240px}
+.photoExpanded>.photoViewAll{width:auto;min-width:96px}
+.photoExpanded:global(.lysn-photo-expanded--mine){align-items:flex-end}
+.photoExpanded:global(.lysn-photo-expanded--artist){align-items:flex-start}
+:global(.lysn-photo-expanded--mine) .photoExpandedGrid{align-items:flex-end}
+:global(.lysn-photo-expanded--artist) .photoExpandedGrid{align-items:flex-start}
+:global(.lysn-photo-expanded--mine) .photoExpandedGrid>button{align-self:flex-end}
+:global(.lysn-photo-expanded--artist) .photoExpandedGrid>button{align-self:flex-start}
+.photoDeck .photoCard img{object-fit:cover!important;object-position:50% 50%!important}
+.stackWrap.stackMine{flex-direction:row-reverse}
+.stackWrap:not(.stackMine){flex-direction:row}

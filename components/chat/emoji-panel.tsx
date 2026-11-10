@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { loadStickerPacksForCharacters, resolvePackStickerMap, type StickerPack } from "@/lib/custom-sticker-storage";
-import { BUILTIN_SCREEN_EFFECTS, loadBuiltinScreenEffectSettings } from "@/lib/chat-screen-effects";
+import { BUILTIN_SCREEN_EFFECTS, loadBuiltinScreenEffectSettings, screenEffectsEnabled } from "@/lib/chat-screen-effects";
 
 // ── Emoji categories ─────────────────────────────
 
@@ -77,7 +77,7 @@ export function EmojiPanel({ onSelect, onEffectSend }: EmojiPanelProps) {
         return BUILTIN_SCREEN_EFFECTS.filter(effect => settings[effect.type].enabled);
     });
     const effectCategoryIndex = EMOJI_CATEGORIES.length;
-    const showEffectTab = false;
+    const showEffectTab = Boolean(onEffectSend) && screenEffectsEnabled() && enabledEffects.length > 0;
 
     return (
         <div className="h-[220px] flex flex-col">

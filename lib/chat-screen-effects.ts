@@ -31,6 +31,9 @@ export type ChatScreenEffectMatch = {
 
 const RAIN_RULES_KEY = "chat-screen-effect-rules";
 const BUILTIN_SETTINGS_KEY = "chat-screen-effect-builtins";
+const TOTAL_EFFECTS_KEY = "chat-screen-effects-master-enabled-v1";
+export function screenEffectsEnabled(): boolean { try { return kvGet(TOTAL_EFFECTS_KEY) === "true"; } catch { return false; } }
+export function setScreenEffectsEnabled(value: boolean): void { kvSet(TOTAL_EFFECTS_KEY, String(value)); notifyRulesUpdated(); }
 const MAX_RULES = 50;
 const MAX_KEYWORD_LENGTH = 60;
 const MAX_EMOJIS_LENGTH = 16;
@@ -159,24 +162,25 @@ export function formatChatDiceResultMessage(face: number): string {
 
 /** 整条消息就是骰子图标（表情面板点出的 🎲）→ 直接转成骰子气泡 */
 export function isDiceOnlyMessage(text: string): boolean {
+    if (!screenEffectsEnabled()) return false;
     if (text.trim() !== "🎲") return false;
     return loadBuiltinScreenEffectSettings().dice.enabled;
 }
 
-/** 注入聊天提示词的特效说明；全部特效关闭时不注入 */
+/** The master switch controls BOTH render and AI prompt injection. */
 export function buildScreenEffectPromptHint(): string {
+    if (!screenEffectsEnabled()) return "";
     try {
-        const builtins = loadBuiltinScreenEffectSettings();
-        const anyEnabled = BUILTIN_SCREEN_EFFECTS.some(effect => builtins[effect.type].enabled)
-            || loadChatScreenEffectRules().some(rule => rule.enabled && rule.keyword);
-        if (!anyEnabled) return "";
-        // 前面留空行与上一板块隔开（挂在自定义 APP 指令之后）
+        const selected = BUILTIN_SCREEN_EFFECTS.filter(effect => loadBuiltinScreenEffectSettings()[effect.type].enabled);
+        const enabledRules = loadChatScreenEffectRules().filter(rule => rule.enabled && rule.keyword.trim());
+        if (!selected.length && !enabledRules.length) return "";
+        const names = selected.map(effect => effect.name + "「" + effect.icon + "」").join("、");
+        const dice = selected.some(effect => effect.type === "dice");
         return "\n\n### 聊天室全屏特效\n"
-            + "想烘托气氛时，单独发一条只包含对应图标的消息即可触发全屏动画：烟花「🎆」、爱心「💗」、礼花「🎊」、炸弹「💣」、掷骰子「🎲」。图标夹在其他文字里不会触发。"
-            + "掷骰子会掷出 1-6 点，结果由系统旁白公布（「🎲 掷出了 N 点」）。用户掷的点数你能直接看到；你自己掷的结果要到下一轮才可见。请以旁白公布的点数为准回应，不要自行编造点数。\n";
-    } catch {
-        return "";
-    }
+            + (selected.length ? "仅以下已启用的特效可用（单独发送图标触发）："+names+"。图标夹在普通文字中不会触发。\n" : "")
+            + (enabledRules.length ? "已启用的表情雨触发词：" + enabledRules.map(rule => rule.keyword).join("、") + "。\n" : "")
+            + (dice ? "掷骰点数由系统生成并公布，请以实际结果回应，不要编造。\n" : "");
+    } catch { return ""; }
 }
 
 function keywordHit(text: string, keyword: string): boolean {
@@ -188,6 +192,7 @@ function keywordHit(text: string, keyword: string): boolean {
 /** 首个命中的启用规则：表情雨按「包含」匹配；内置全屏特效没有触发词，
  *  只认整条消息恰好是特效图标本身（🎆💗🎊💣🎲），夹在句子里不触发 */
 export function matchChatScreenEffectRule(text: string): ChatScreenEffectMatch | null {
+    if (!screenEffectsEnabled()) return null;
     if (!text) return null;
     for (const rule of loadChatScreenEffectRules()) {
         if (rule.enabled && keywordHit(text, rule.keyword)) {
