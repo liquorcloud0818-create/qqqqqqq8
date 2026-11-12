@@ -3,6 +3,7 @@ package app.floatphone.shell
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.DownloadManager
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -11,7 +12,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.MediaStore
 import android.provider.Settings
+import android.util.Base64
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.JavascriptInterface
@@ -26,6 +29,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import java.io.File
+import java.io.FileOutputStream
+import java.io.OutputStream
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Float 小手机安卓壳：全屏 WebView 直接加载线上站点。
@@ -35,7 +43,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         val SITE_URL: String = BuildConfig.SITE_URL
-        const val VERSION = "1.0.0"
+        const val VERSION = "1.0.1"
         /** 来电接听等场景的站内深链（必须以 SITE_URL 开头，否则忽略） */
         const val EXTRA_OPEN_URL = "open_url"
     }
@@ -43,13 +51,31 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
 
+    private data class PendingDownload(
+        val uri: Uri?,
+        val file: File?,
+        val stream: OutputStream
+    )
+
+    private val pendingDownloads = ConcurrentHashMap<String, PendingDownload>()
+
     private val fileChooserLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val callback = filePathCallback ?: return@registerForActivityResult
         filePathCallback = null
-        val data = result.data?.data
-        callback.onReceiveValue(if (data != null) arrayOf(data) else emptyArray())
+        val intent = result.data
+        val selectedUris = linkedSetOf<Uri>()
+        if (result.resultCode == android.app.Activity.RESULT_OK && intent != null) {
+            val clip = intent.clipData
+            if (clip != null) {
+                for (index in 0 until clip.itemCount) {
+                    clip.getItemAt(index).uri?.let { selectedUris.add(it) }
+                }
+            }
+            intent.data?.let { selectedUris.add(it) }
+        }
+        callback.onReceiveValue(selectedUris.toTypedArray())
     }
 
     private val notifPermissionLauncher = registerForActivityResult(
@@ -218,6 +244,103 @@ class MainActivity : AppCompatActivity() {
 
     /** 暴露给网页的原生桥（网页侧可用 window.AndroidShell 特性检测壳环境）。 */
     inner class ShellBridge {
+        @JavascriptInterface
+        fun beginDownload(filename: String, mimeType: String): String {
+            return runCatching {
+                val safeName = filename.substringAfterLast('/').substringAfterLast('\\')
+                    .replace(Regex("[\\r\\n]"), "_")
+                    .take(180)
+                    .ifBlank { "export-${System.currentTimeMillis()}" }
+
+                val token = UUID.randomUUID().toString()
+
+                val pending = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val values = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, safeName)
+                        put(MediaStore.MediaColumns.MIME_TYPE, mimeType.ifBlank {
+                            "application/octet-stream"
+                        })
+                        put(MediaStore.MediaColumns.RELATIVE_PATH,
+                            "${Environment.DIRECTORY_DOWNLOADS}/Float")
+                        put(MediaStore.MediaColumns.IS_PENDING, 1)
+                    }
+                    val uri = contentResolver.insert(
+                        MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
+                    ) ?: throw IllegalStateException("无法创建下载文件")
+                    val stream = contentResolver.openOutputStream(uri, "w")
+                    if (stream == null) {
+                        contentResolver.delete(uri, null, null)
+                        throw IllegalStateException("无法打开下载文件")
+                    }
+                    PendingDownload(uri, null, stream)
+                } else {
+                    val dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                        ?: File(filesDir, "Downloads")
+                    if (!dir.exists() && !dir.mkdirs()) {
+                        throw IllegalStateException("无法创建下载目录")
+                    }
+                    val dot = safeName.lastIndexOf('.')
+                    val uniqueName = if (dot > 0) {
+                        safeName.substring(0, dot) + "_" +
+                            System.currentTimeMillis() + safeName.substring(dot)
+                    } else {
+                        safeName + "_" + System.currentTimeMillis()
+                    }
+                    val file = File(dir, uniqueName)
+                    PendingDownload(null, file, FileOutputStream(file))
+                }
+
+                pendingDownloads[token] = pending
+                token
+            }.getOrDefault("")
+        }
+
+        @JavascriptInterface
+        fun appendDownloadChunk(token: String, base64Chunk: String): Boolean {
+            val pending = pendingDownloads[token] ?: return false
+            return runCatching {
+                pending.stream.write(Base64.decode(base64Chunk, Base64.DEFAULT))
+                true
+            }.getOrDefault(false)
+        }
+
+        @JavascriptInterface
+        fun finishDownload(token: String): Boolean {
+            val pending = pendingDownloads.remove(token) ?: return false
+            return runCatching {
+                pending.stream.flush()
+                pending.stream.close()
+
+                if (pending.uri != null) {
+                    val values = ContentValues().apply {
+                        put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    }
+                    if (contentResolver.update(pending.uri, values, null, null) <= 0) {
+                        throw IllegalStateException("无法完成文件保存")
+                    }
+                }
+
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "文件已保存到下载目录",
+                        Toast.LENGTH_LONG).show()
+                }
+                true
+            }.getOrElse {
+                runCatching { pending.stream.close() }
+                pending.uri?.let { contentResolver.delete(it, null, null) }
+                pending.file?.delete()
+                false
+            }
+        }
+
+        @JavascriptInterface
+        fun abortDownload(token: String) {
+            val pending = pendingDownloads.remove(token) ?: return
+            runCatching { pending.stream.close() }
+            pending.uri?.let { contentResolver.delete(it, null, null) }
+            pending.file?.delete()
+        }
+
         @JavascriptInterface
         fun getVersion(): String = VERSION
 

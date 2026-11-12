@@ -10,7 +10,7 @@ import { loadWalletState } from "@/lib/wallet-storage";
 // ── Photo Input Modal ─────────────────────────────
 
 interface PhotoInputModalProps {
-    onSend: (description: string, imageDataUrls: string[]) => void;
+    onSend: (description: string, imageDataUrls: string[]) => Promise<number>;
     onClose: () => void;
 }
 
@@ -18,6 +18,7 @@ export function PhotoInputModal({ onSend, onClose }: PhotoInputModalProps) {
     const [desc, setDesc] = useState("");
     const [imageDataUrls, setImageDataUrls] = useState<string[]>([]);
     const [readError, setReadError] = useState("");
+    const [sending, setSending] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -37,6 +38,26 @@ export function PhotoInputModal({ onSend, onClose }: PhotoInputModalProps) {
     };
 
     const canSend = imageDataUrls.length > 0;
+    const handleSend = async () => {
+        if (!canSend || sending) return;
+        setSending(true);
+        setReadError("");
+        try {
+            const sentCount = Math.max(0, Math.min(imageDataUrls.length, Math.floor(await onSend(desc.trim(), imageDataUrls))));
+            if (sentCount > 0) {
+                const remaining = imageDataUrls.slice(sentCount);
+                setImageDataUrls(remaining);
+                if (remaining.length === 0) onClose();
+                else setReadError(`已发送 ${sentCount} 张，未发送的照片已保留。`);
+            } else {
+                setReadError("照片尚未发送成功，已保留所选照片，请处理提示后重试。");
+            }
+        } catch (error) {
+            setReadError(error instanceof Error ? error.message : "发送照片失败，请重试");
+        } finally {
+            setSending(false);
+        }
+    };
 
     return (
         <div className="modal-overlay" onClick={onClose}>
@@ -83,10 +104,10 @@ export function PhotoInputModal({ onSend, onClose }: PhotoInputModalProps) {
                         className="ui-btn ui-btn-ghost ui-btn-bordered-ghost flex-1"
                     >取消</button>
                     <button
-                        onClick={() => { if (canSend) onSend(desc.trim(), imageDataUrls); }}
-                        disabled={!canSend}
+                        onClick={handleSend}
+                        disabled={!canSend || sending}
                         className="ui-btn ui-btn-success flex-1"
-                    >发送</button>
+                    >{sending ? "发送中…" : "发送"}</button>
                 </div>
             </div>
         </div>

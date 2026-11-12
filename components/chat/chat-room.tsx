@@ -6879,12 +6879,28 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             {richModal === "photo" && (
                 <PhotoInputModal
                     onSend={async (desc, imageDataUrls) => {
-                        setRichModal(null);
+                        if (isReverseActive() && !activeReverse()?.paused) { showChatToast("先点抢回来，再编辑或发送"); return 0; }
+                        if (!ensureGroupSpeakPermission()) return 0;
+                        if (isGenerating) { showChatToast("请先等待对方回复"); return 0; }
                         const photoBatchId = imageDataUrls.length > 1 ? `photo-${Date.now()}-${Math.random().toString(36).slice(2)}` : undefined;
-                        for(const imageDataUrl of imageDataUrls){
- if(imageDataUrl.startsWith('data:image/gif')){try{const blob=await(await fetch(imageDataUrl)).blob();const media=await prepareSocialMedia(new File([blob],'image.gif',{type:'image/gif'}));sendRichMessage('image',{label:desc||'GIF：按时间顺序的8帧',socialMedia:media,photoBatchId},'',media.sheet);}catch(e){showChatToast(e instanceof Error?e.message:'GIF处理失败');}}
- else sendRichMessage("image", { label: desc, photoBatchId }, "", imageDataUrl);
-}
+                        let sentCount = 0;
+                        for (const imageDataUrl of imageDataUrls) {
+                            if (imageDataUrl.startsWith("data:image/gif")) {
+                                try {
+                                    const blob = await (await fetch(imageDataUrl)).blob();
+                                    const media = await prepareSocialMedia(new File([blob], "image.gif", { type: "image/gif" }));
+                                    if (!sendRichMessage("image", { label: desc || "GIF：按时间顺序的8帧", socialMedia: media, photoBatchId }, "", media.sheet)) break;
+                                    sentCount += 1;
+                                } catch (error) {
+                                    showChatToast(error instanceof Error ? error.message : "GIF处理失败");
+                                    break;
+                                }
+                            } else {
+                                if (!sendRichMessage("image", { label: desc, photoBatchId }, "", imageDataUrl)) break;
+                                sentCount += 1;
+                            }
+                        }
+                        return sentCount;
                     }}
                     onClose={() => setRichModal(null)}
                 />
