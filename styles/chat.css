@@ -7949,9 +7949,8 @@
 .chat-app .kkt-own-avatar,
 .chat-app .kkt-update-avatar,
 .chat-app .kkt-list-page .minimal-avatar-wrapper,
-.chat-app :is(.chat-contact-avatar, .chat-offline-avatar, .add-friend-avatar, .freq-avatar, .freq-detail-avatar, .chat-contact-card-avatar, [data-chat-avatar]),
-.chat-app .chat-msg-avatar:has(> img),
-.chat-app .chat-msg-avatar > div:has(> img),
+/* The message-room avatars are deliberately excluded: user CSS owns their shape. */
+.chat-app :is(.chat-contact-avatar, .chat-offline-avatar, .add-friend-avatar, .freq-avatar, .freq-detail-avatar, .chat-contact-card-avatar, [data-chat-avatar]:not(.chat-msg-avatar):not(.chat-room-layer [data-chat-avatar])),
 .voicecall-cards .chat-call-card-avatar,
 .chat-app .kkt-group-avatar {
   -webkit-mask-image: var(--kkt-avatar-mask);
