@@ -140,7 +140,7 @@ export function createCharacter(
 
 // ── JSON import/export ───────────────────────────────
 
-export function exportCharacterAsJson(char: Character): void {
+export async function exportCharacterAsJson(char: Character): Promise<void> {
   const payload = {
     schema: "ai_phone_character",
     schema_version: "1.0",
@@ -165,10 +165,12 @@ export function exportCharacterAsJson(char: Character): void {
     polaroidImageY: char.polaroidImageY ?? 50,
     polaroidImageZoom: char.polaroidImageZoom ?? 1,
   };
+
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json",
   });
-  triggerDownload(blob, `${sanitizeFilename(char.name)}.json`);
+
+  await triggerDownload(blob, `${sanitizeFilename(char.name)}.json`);
 }
 
 export type CharacterImportData = Omit<
