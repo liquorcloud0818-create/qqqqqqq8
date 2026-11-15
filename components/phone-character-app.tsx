@@ -367,17 +367,36 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
               setView({ type: "list", id: null, isEditing: false });
               onNotice("已删除档案");
             }}
-            onExportJson={() => {
-              const c = view.id ? characters.find(x => x.id === view.id) : null;
-              if (c) exportCharacterAsJson(c);
-            }}
-            onExportPng={async () => {
-              const c = view.id ? characters.find(x => x.id === view.id) : null;
-              if (c) {
-                await exportCharacterAsPng(c);
-                onNotice("导出成功");
-              }
-            }}
+           onExportJson={async () => {
+  const c = view.id ? characters.find(x => x.id === view.id) : null;
+  if (!c) return;
+
+  try {
+    await exportCharacterAsJson(c);
+    onNotice("角色档案 JSON 已导出");
+  } catch (error) {
+    onNotice(
+      error instanceof Error
+        ? `角色档案导出失败：${error.message}`
+        : "角色档案导出失败，请重试。"
+    );
+  }
+}}
+onExportPng={async () => {
+  const c = view.id ? characters.find(x => x.id === view.id) : null;
+  if (!c) return;
+
+  try {
+    await exportCharacterAsPng(c);
+    onNotice("角色档案图片已导出");
+  } catch (error) {
+    onNotice(
+      error instanceof Error
+        ? `角色档案图片导出失败：${error.message}`
+        : "角色档案图片导出失败，请重试。"
+    );
+  }
+}}
             onNotice={onNotice}
           />
         )}
