@@ -54,10 +54,11 @@ async function downloadThroughAndroidShell(
     filename: string,
     bridge: AndroidShellDownloadBridge
 ): Promise<void> {
-    const token = bridge.beginDownload(
-        filename,
-        blob.type || "application/octet-stream"
-    );
+ const bridgeMimeType = filename.toLowerCase().endsWith(".json")
+    ? "application/octet-stream"
+    : (blob.type || "application/octet-stream");
+
+const token = bridge.beginDownload(filename, bridgeMimeType);
     if (!token) throw new Error("Android 文件保存初始化失败");
 
     try {
