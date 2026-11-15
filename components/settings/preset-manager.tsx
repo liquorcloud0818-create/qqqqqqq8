@@ -838,14 +838,23 @@ export function PresetManager({ isActive = true }: { isActive?: boolean } = {}) 
         updatePreset(preset.id, { prompts: newPrompts, ...(newOrder ? { prompt_order: newOrder } : {}) });
     }, [actionableSelectedIds, presets, editingId]);
 
-    const bulkExportSelected = useCallback(async () => {
-        const preset = presets.find(p => p.id === editingId);
-        if (!preset || actionableSelectedIds.size === 0) return;
+ const bulkExportSelected = useCallback(async () => {
+    const preset = presets.find(p => p.id === editingId);
+    if (!preset || actionableSelectedIds.size === 0) return;
+
+    try {
         const selected = preset.prompts.filter(p => actionableSelectedIds.has(p.identifier));
         const { downloadFile } = await import("@/lib/download-utils");
         const blob = new Blob([JSON.stringify(selected, null, 2)], { type: "application/json" });
         await downloadFile(blob, `${preset.name || "preset"}-entries.json`);
-    }, [actionableSelectedIds, presets, editingId]);
+    } catch (error) {
+        setImportError(
+            error instanceof Error
+                ? `预设条目导出失败：${error.message}`
+                : "预设条目导出失败，请重试。"
+        );
+    }
+}, [actionableSelectedIds, presets, editingId]);
 
     const deleteSelectedPrompts = useCallback(() => {
         const preset = presets.find(p => p.id === editingId);
