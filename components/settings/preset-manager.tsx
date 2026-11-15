@@ -2046,7 +2046,7 @@ export function PresetManager({ isActive = true }: { isActive?: boolean } = {}) 
 
             {importError && (
                 <ConfirmDialog
-                    title="导入失败"
+                    title="操作失败"
                     message={importError}
                     icon={AlertCircle}
                     variant="danger"
