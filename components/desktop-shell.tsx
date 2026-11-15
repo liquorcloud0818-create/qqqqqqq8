@@ -7,6 +7,7 @@ import {setReversePageIntent} from "@/lib/reverse-phone-state";
 import {REVERSE_NAV} from "@/lib/reverse-phone-runtime";
 import {useAppBack} from "@/lib/back-navigation";
 import { PhoneLockScreen } from "./phone-lock-screen";
+import { loadPhoneLock } from "@/lib/phone-lock";
 import { NovelApp } from "./novel/novel-app";
 import { privateDesktopNotice, mergeDesktopNotice, type DesktopMessageNotice } from "@/lib/desktop-message-notice";
 import { isRingtoneSource } from "@/lib/ringtone-source";
@@ -238,6 +239,8 @@ const TEXT = {
 type DesktopLayout = DesktopIconLayout;
 
 type DesktopShellProps = {
+  initialLockEnabled?: boolean;
+  initialLockWallpaper?: string;
   initialThemeProfile?: ThemeProfile | null;
   initialThemeAssets?: Record<string, string>;
 };
@@ -1068,7 +1071,7 @@ const MusicShellOverlays = memo(function MusicShellOverlays({
   );
 });
 
-export function DesktopShell({ initialThemeProfile, initialThemeAssets }: DesktopShellProps) {
+export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialLockEnabled, initialLockWallpaper }: DesktopShellProps) {
   useEffect(()=>{const e=new Event("rabbit-inspection-runtime-start");window.dispatchEvent(e);},[]);
   useEffect(() => {
     const openTogether = () => {
@@ -1083,7 +1086,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
     musicOverlayControllerRef.current = controller;
   }, []);
   useAndroidCaretKeyboardLift();
-  const [startupLocked,setStartupLocked] = useState(true);
+  const [startupLocked,setStartupLocked] = useState(() => initialLockEnabled ?? loadPhoneLock().enabled);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const [layout, setLayout] = useState<DesktopLayout>(DEFAULT_LAYOUT);
   // Dock is an ordered icon-id list (max DOCK_MAX), kept disjoint from `layout`.
@@ -4377,7 +4380,7 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
                 "--desktop-shadow-strength": draftTheme.cssOverrides["--desktop-global-shadow"] ?? (draftTheme.enableGlobalShadows ? "0.5" : "0")
               } as React.CSSProperties}
             >
-              {startupLocked && <div style={{position:"absolute",inset:0,zIndex:12000}}><PhoneLockScreen ready={true} onEnter={() => setStartupLocked(false)} /></div>}
+              {startupLocked && <div style={{position:"absolute",inset:0,zIndex:12000}}><PhoneLockScreen ready={true} wallpaper={initialLockWallpaper} onEnter={() => setStartupLocked(false)} /></div>}
               <RelationshipSuggestionPrompt />
               <div className="phone-wallpaper" style={wallpaperStyle} />
 
