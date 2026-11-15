@@ -437,10 +437,18 @@ export function WorldBookManager({ isActive = true }: { isActive?: boolean } = {
     };
 
     const exportEntry = async (entry: WorldBookEntry) => {
+    try {
         const { downloadFile } = await import("@/lib/download-utils");
         const blob = new Blob([JSON.stringify(entry, null, 2)], { type: "application/json" });
         await downloadFile(blob, `${entry.comment || entry.key || "worldbook-entry"}.json`);
-    };
+    } catch (error) {
+        setImportError(
+            error instanceof Error
+                ? `世界书条目导出失败：${error.message}`
+                : "世界书条目导出失败，请重试。"
+        );
+    }
+};
 
     const handleEntryImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
