@@ -1006,11 +1006,19 @@ export function PresetManager({ isActive = true }: { isActive?: boolean } = {}) 
         if (editingPromptId === targetIdentifier) setEditingPromptId(finalId);
     };
 
-    const exportPrompt = async (prompt: Prompt) => {
+ const exportPrompt = async (prompt: Prompt) => {
+    try {
         const { downloadFile } = await import("@/lib/download-utils");
         const blob = new Blob([JSON.stringify(prompt, null, 2)], { type: "application/json" });
         await downloadFile(blob, `${prompt.name || prompt.identifier || "prompt"}.json`);
-    };
+    } catch (error) {
+        setImportError(
+            error instanceof Error
+                ? `预设条目导出失败：${error.message}`
+                : "预设条目导出失败，请重试。"
+        );
+    }
+};
 
     const handleEntryImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
