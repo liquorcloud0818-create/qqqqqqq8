@@ -1078,12 +1078,20 @@ export function PresetManager({ isActive = true }: { isActive?: boolean } = {}) 
         }
     };
 
-    const handleExport = async (preset: PresetConfig) => {
+  const handleExport = async (preset: PresetConfig) => {
+    try {
         const exportData = { ...preset };
         const { downloadFile } = await import("@/lib/download-utils");
         const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
         await downloadFile(blob, `${preset.name || "preset"}.json`);
-    };
+    } catch (error) {
+        setImportError(
+            error instanceof Error
+                ? `预设导出失败：${error.message}`
+                : "预设导出失败，请重试。"
+        );
+    }
+};
 
     if (!isLoaded) return null; // loading state
 
