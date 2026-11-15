@@ -313,11 +313,19 @@ export function WorldBookManager({ isActive = true }: { isActive?: boolean } = {
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
 
-    const handleExport = async (book: WorldBookConfig) => {
+   const handleExport = async (book: WorldBookConfig) => {
+    try {
         const { downloadFile } = await import("@/lib/download-utils");
         const blob = new Blob([JSON.stringify(book, null, 2)], { type: "application/json" });
         await downloadFile(blob, `${book.name || "worldbook"}.json`);
-    };
+    } catch (error) {
+        setImportError(
+            error instanceof Error
+                ? `世界书导出失败：${error.message}`
+                : "世界书导出失败，请重试。"
+        );
+    }
+};
 
     // --- Entry Level Operations ---
     const activeBook = books.find(b => b.id === activeBookId);
