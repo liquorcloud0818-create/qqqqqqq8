@@ -472,7 +472,7 @@ export async function exportCharacterAsPng(char: Character): Promise<void> {
   const finalBytes = injectPngTextChunk(pngBytes, textChunk);
 
   const blob = new Blob([finalBytes.buffer as ArrayBuffer], { type: "image/png" });
-  triggerDownload(blob, `${sanitizeFilename(char.name)}.png`);
+  await triggerDownload(blob, `${sanitizeFilename(char.name)}.png`);
 }
 
 // ── 工具函数 ─────────────────────────────────────────
