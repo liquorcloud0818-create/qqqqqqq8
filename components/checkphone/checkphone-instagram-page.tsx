@@ -259,7 +259,22 @@ export function CheckPhoneInstagramPage({ character, onBack }: CheckPhoneInstagr
           <>
             <section className="cp-instagram-profile-card">
               <div className="cp-instagram-profile-top">
-                <div className="cp-instagram-profile-avatar">{getInstagramInitial(payload.profile.name)}</div>
+               <div className="cp-instagram-profile-avatar">
+  {platformProfile.avatarUrl ? (
+    <img
+      src={platformProfile.avatarUrl}
+      alt="Instagram头像"
+      style={{
+        width: "100%",
+        height: "100%",
+        borderRadius: "50%",
+        objectFit: "cover",
+      }}
+    />
+  ) : (
+    getInstagramInitial(platformProfile.nickname || payload.profile.name)
+  )}
+</div>
                 <div className="cp-instagram-profile-stats">
                   <div><strong>{posts.length}</strong><span>posts</span></div>
                   <div><strong>{formatCount(payload.profile.followerCount)}</strong><span>followers</span></div>
