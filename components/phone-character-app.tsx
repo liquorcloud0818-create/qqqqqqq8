@@ -2080,6 +2080,7 @@ function CharArchiveView({
       setShowTimeZonePicker(false);
       setTags(char.tags || []);
       setAvatar(char.avatar || null);
+      setPlatformAvatars(loadCharacterPlatformAvatars(char.id));
       setPolaroidStyle(char.polaroidStyle ?? 0);
       setPolaroidSize(char.polaroidSize ?? "random");
       setPolaroidImageX(char.polaroidImageX ?? 50);
