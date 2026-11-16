@@ -1959,6 +1959,7 @@ function CharArchiveView({
   const [timeZoneSearch, setTimeZoneSearch] = useState(char.timeZone || "");
   const [avatar, setAvatar] = useState<string | null>(char.avatar || null);
   const [platformAvatars, setPlatformAvatars] = useState<Record<string, string>>(() => loadCharacterPlatformAvatars(char.id));
+  const [platformNicknames, setPlatformNicknames] = useState<Record<string, string>>(() => loadCharacterPlatformNicknames(char.id));
   const [polaroidStyle, setPolaroidStyle] = useState(char.polaroidStyle ?? 0);
   const [polaroidSize, setPolaroidSize] = useState<Character["polaroidSize"]>(char.polaroidSize ?? "random");
   const [polaroidImageX, setPolaroidImageX] = useState(char.polaroidImageX ?? 50);
