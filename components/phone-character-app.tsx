@@ -320,7 +320,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
                 setView({ type: "list", id: null, isEditing: false });
               }
             }}
-           onSave={(data, createVersion, platformAvatars) => {
+           onSave={(data, createVersion, platformAvatars, platformNicknames) => {
               const existing = view.id ? characters.find((c) => c.id === view.id) : null;
               if (existing) {
                 const nextVersion = createVersion
