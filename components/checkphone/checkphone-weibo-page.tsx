@@ -43,7 +43,7 @@ import {
   subscribeCheckPhoneRefresh,
 } from "@/lib/checkphone-refresh-tracker";
 import { splitBilingualText } from "@/lib/bilingual-text";
-
+import { useCharacterPlatformProfile } from "@/components/character/use-character-platform-profile";
 type CheckPhoneWeiboPageProps = {
   character: Character;
   onBack: () => void;
