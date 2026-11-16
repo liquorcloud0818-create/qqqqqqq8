@@ -1022,7 +1022,15 @@ export function CheckPhoneXiaohongshuPage({ character, onBack }: CheckPhoneXiaoh
                     <div className="cp-xhs-profile-cover" aria-hidden="true" />
                     <div className="cp-xhs-profile-main">
                       <div className="cp-xhs-profile-avatar-wrap">
-                        <div className="cp-xhs-profile-avatar">{payload.profile.name.slice(0, 1)}</div>
+                        <div className="cp-xhs-profile-avatar">{platformProfile.avatarUrl ? (
+  <img
+    src={platformProfile.avatarUrl}
+    alt="小红书头像"
+    style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "inherit" }}
+  />
+) : (
+  (platformProfile.nickname || payload.profile.name).slice(0, 1)
+)}</div>
                         <span>+</span>
                       </div>
                       <div className="cp-xhs-profile-meta">
