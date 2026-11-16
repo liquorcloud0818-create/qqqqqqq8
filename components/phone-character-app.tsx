@@ -319,7 +319,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
                 setView({ type: "list", id: null, isEditing: false });
               }
             }}
-            onSave={(data, createVersion) => {
+           onSave={(data, createVersion, platformAvatars) => {
               const existing = view.id ? characters.find((c) => c.id === view.id) : null;
               if (existing) {
                 const nextVersion = createVersion
@@ -331,6 +331,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
                   updatedAt: new Date().toISOString(),
                 };
                 updateChars(characters.map((c) => (c.id === existing.id ? updated : c)));
+                saveCharacterPlatformAvatars(existing.id, platformAvatars);
                 setCharacterPhoneNumber(existing.id, data.wechatID || "");
                 setView({ type: "detail", id: existing.id, isEditing: false });
                 onNotice(createVersion
