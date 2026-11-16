@@ -2050,6 +2050,7 @@ function CharArchiveView({
     if (timeZone !== (char.timeZone || "")) return true;
     if (avatar !== (char.avatar || null)) return true;
     if (JSON.stringify(Object.entries(platformAvatars).sort()) !== JSON.stringify(Object.entries(loadCharacterPlatformAvatars(char.id)).sort())) return true;
+    if (JSON.stringify(Object.entries(platformNicknames).sort()) !== JSON.stringify(Object.entries(loadCharacterPlatformNicknames(char.id)).sort())) return true;
     if (polaroidStyle !== (char.polaroidStyle ?? 0)) return true;
     if (polaroidSize !== (char.polaroidSize ?? "random")) return true;
     if (polaroidImageX !== (char.polaroidImageX ?? 50)) return true;
