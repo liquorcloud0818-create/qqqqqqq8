@@ -2567,6 +2567,8 @@ function CharArchiveView({
          <PlatformAvatarSettings
           value={platformAvatars}
           onChange={setPlatformAvatars}
+           nicknames={platformNicknames}
+onNicknamesChange={setPlatformNicknames}
           editing={isEditing}
           onNotice={onNotice}
   />
