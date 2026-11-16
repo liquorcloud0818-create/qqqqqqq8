@@ -220,6 +220,10 @@ export function TwitterApp({ onClose, onNotice: externalNotice }: Props) {
   const { onNotice, feedback: generationFeedback } = useGenerationFeedback(busy ? `正在生成${generationKind || " X 内容"}…` : null, externalNotice);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const platformProfiles = useCharacterPlatformProfiles(
+  characters.map(char => char.id),
+  "twitter",
+);
   const userIdentity = resolveUserIdentity(undefined, "twitter");
   const user = { ...state.profile, avatarUrl: state.profile.avatarUrl || userIdentity?.avatarUrl || "" };
   const currentUserAccount = state.accounts[activeAccount] || user;
