@@ -259,8 +259,15 @@ export function TwitterApp({ onClose, onNotice: externalNotice }: Props) {
     if (state.accounts[id]) return id.startsWith("npc:") ? {...state.accounts[id],avatarUrl:STRANGER_AVATAR} : state.accounts[id];
     const char = characters.find(c => c.id === id);
     const own = state.characterProfiles[id];
-    return { ...own, name: own?.name || char?.name || "已移除角色", handle: own?.handle || (char?.name || "character").replace(/\s+/g, "_").toLowerCase(), avatarUrl: own?.avatarUrl || char?.avatar || "", bannerUrl: own?.bannerUrl || "", bio: own?.bio || "" };
-  }, [characters, state.characterProfiles, state.communityCharacters, state.accounts, user]);
+        return {
+      ...own,
+      name: platformProfiles[id]?.nickname || own?.name || char?.name || "已移除角色",
+      handle: own?.handle || (char?.name || "character").replace(/\s+/g, "_").toLowerCase(),
+      avatarUrl: platformProfiles[id]?.avatarUrl || own?.avatarUrl || char?.avatar || "",
+      bannerUrl: own?.bannerUrl || "",
+      bio: own?.bio || "",
+    };
+  }, [characters, state.characterProfiles, state.communityCharacters, state.accounts, user, platformProfiles]);
 
   const posts = useMemo(() => state.posts.filter(p => !p.replyToId).sort((a, b) => b.createdAt - a.createdAt), [state.posts]);
   const currentThread = state.posts.find(p => p.id === threadId);
