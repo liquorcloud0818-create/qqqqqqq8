@@ -342,6 +342,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
               } else {
                 const newChar = createCharacter(data);
                 saveCharacterPlatformAvatars(newChar.id, platformAvatars);
+                saveCharacterPlatformNicknames(newChar.id, platformNicknames);
                 setCharacterPhoneNumber(newChar.id, newChar.wechatID || "");
                 newChar.polaroidStyle = pendingPolaroidStyle;
                 setPendingPlacementChar(newChar);
