@@ -34,7 +34,7 @@ import { clearPhoneSnapshot, loadPhoneSnapshot } from "@/lib/checkphone-storage"
 import { getChatImageFromIndexedDB } from "@/lib/chat-asset-storage";
 import { twitterAccountEnabled, TWITTER_UPDATED_EVENT, loadTwitterState } from "@/lib/twitter-storage";
 import { projectCharacterTwitter, publishCharacterTwitterFromCheckPhone } from "@/lib/twitter-checkphone-bridge";
-import { useCharacterPlatformProfile } from "@/components/character/use-character-platform-profile";
+
 type CheckPhoneXPageProps = {
   character: Character;
   onBack: () => void;
