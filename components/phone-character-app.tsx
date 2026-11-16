@@ -339,6 +339,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
                   : `已覆盖旧版本，当前为 V${nextVersion}`);
               } else {
                 const newChar = createCharacter(data);
+                saveCharacterPlatformAvatars(newChar.id, platformAvatars);
                 setCharacterPhoneNumber(newChar.id, newChar.wechatID || "");
                 newChar.polaroidStyle = pendingPolaroidStyle;
                 setPendingPlacementChar(newChar);
