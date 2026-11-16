@@ -1282,7 +1282,15 @@ export function CheckPhoneWeiboPage({
                           flex: "0 0 62px",
                         }}
                       >
-                        {payload.profile.name.slice(0, 1)}
+                       {platformProfile.avatarUrl ? (
+  <img
+    src={platformProfile.avatarUrl}
+    alt="微博头像"
+    style={{ width: "62px", height: "62px", borderRadius: "50%", objectFit: "cover" }}
+  />
+) : (
+  (platformProfile.nickname || payload.profile.name).slice(0, 1)
+)}
                       </div>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div
@@ -1305,7 +1313,7 @@ export function CheckPhoneWeiboPage({
                               lineHeight: 1.16,
                             }}
                           >
-                            {payload.profile.name}
+                            {platformProfile.nickname || payload.profile.name}
                           </strong>
                           <span
                             style={{
