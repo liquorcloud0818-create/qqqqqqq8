@@ -1002,7 +1002,7 @@ export function CheckPhoneDouyinPage({
                     textShadow: "0 1px 2px rgba(0,0,0,0.2)",
                   }}
                 >
-                  {payload.profile.name}
+                 {platformProfile.nickname || payload.profile.name}
                 </h1>
                 <div
                   style={{
