@@ -958,7 +958,20 @@ export function CheckPhoneDouyinPage({
                     border: "2px solid #fff",
                   }}
                 >
-                  {payload.profile.name.slice(0, 1)}
+                 {platformProfile.avatarUrl ? (
+  <img
+    src={platformProfile.avatarUrl}
+    alt="抖音头像"
+    style={{
+      width: "88px",
+      height: "88px",
+      borderRadius: "50%",
+      objectFit: "cover",
+    }}
+  />
+) : (
+  (platformProfile.nickname || payload.profile.name).slice(0, 1)
+)}
                 </div>
                 <div
                   style={{
