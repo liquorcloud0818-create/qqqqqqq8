@@ -17,20 +17,14 @@ type Props = {
 };
 
 const BUILT_IN_PLATFORMS: PlatformOption[] = [
-  { id: "chat", name: "聊天", kind: "built-in" },
-  { id: "moments", name: "朋友圈", kind: "built-in" },
-  { id: "twitter", name: "X / Twitter", kind: "built-in" },
+  { id: "chat", name: "聊天 / 朋友圈", kind: "built-in" },
+  { id: "twitter", name: "X", kind: "built-in" },
   { id: "weibo", name: "微博", kind: "built-in" },
-  { id: "xiaohongshu", name: "小红书", kind: "built-in" },
   { id: "douyin", name: "抖音", kind: "built-in" },
-  { id: "instagram", name: "Instagram", kind: "built-in" },
-  { id: "reddit", name: "Reddit", kind: "built-in" },
-  { id: "bilibili", name: "哔哩哔哩", kind: "built-in" },
-  { id: "douban", name: "豆瓣", kind: "built-in" },
-  { id: "telegram", name: "Telegram", kind: "built-in" },
+  { id: "xiaohongshu", name: "小红书", kind: "built-in" },
   { id: "weverse", name: "Weverse", kind: "built-in" },
   { id: "lysn", name: "Lysn", kind: "built-in" },
-  { id: "steam", name: "Steam", kind: "built-in" },
+  { id: "lianhua", name: "蓮華", kind: "built-in" },
 ];
 
 export function PlatformAvatarSettings({ value, onChange, nicknames, onNicknamesChange, editing, onNotice }: Props) {
