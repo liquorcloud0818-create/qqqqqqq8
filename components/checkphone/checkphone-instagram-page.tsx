@@ -26,7 +26,7 @@ import type {
 } from "@/lib/checkphone-config";
 import { generateCheckPhoneInstagram } from "@/lib/checkphone-engine";
 import { clearPhoneSnapshot, loadPhoneSnapshot, savePhoneSnapshot } from "@/lib/checkphone-storage";
-
+import { useCharacterPlatformProfile } from "@/components/character/use-character-platform-profile";
 type CheckPhoneInstagramPageProps = {
   character: Character;
   onBack: () => void;
