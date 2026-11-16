@@ -2153,7 +2153,7 @@ function CharArchiveView({
         polaroidImageX: clampCharacterImageValue(polaroidImageX, 0, 100, 50),
         polaroidImageY: clampCharacterImageValue(polaroidImageY, 0, 100, 50),
         polaroidImageZoom: clampCharacterImageValue(polaroidImageZoom, 1, 3, 1),
-      }, createVersion);
+     }, createVersion, platformAvatars);
     }
   }
 
