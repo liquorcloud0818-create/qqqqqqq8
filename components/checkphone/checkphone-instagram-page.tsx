@@ -282,7 +282,7 @@ export function CheckPhoneInstagramPage({ character, onBack }: CheckPhoneInstagr
                 </div>
               </div>
               <div className="cp-instagram-profile-main">
-                <h3>{payload.profile.name}</h3>
+                <h3>{platformProfile.nickname || payload.profile.name}</h3>
                 <span>{profileHandle}</span>
                 <p><CheckPhoneBilingualText text={payload.profile.bio} tone="instagram" /></p>
               </div>
