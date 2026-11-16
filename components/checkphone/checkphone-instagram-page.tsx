@@ -70,6 +70,7 @@ function getInstagramInitial(name: string): string {
 }
 
 export function CheckPhoneInstagramPage({ character, onBack }: CheckPhoneInstagramPageProps) {
+  const platformProfile = useCharacterPlatformProfile(character.id, "instagram");
   const [snapshot, setSnapshot] = useState<CheckPhoneSnapshot<CheckPhoneInstagramPayload> | null>(null);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [commentSheetPostId, setCommentSheetPostId] = useState<string | null>(null);
