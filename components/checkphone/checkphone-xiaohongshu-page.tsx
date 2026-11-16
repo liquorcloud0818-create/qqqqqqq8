@@ -357,6 +357,7 @@ function XiaohongshuNoteCard({
 }
 
 export function CheckPhoneXiaohongshuPage({ character, onBack }: CheckPhoneXiaohongshuPageProps) {
+  const platformProfile = useCharacterPlatformProfile(character.id, "xiaohongshu");
   const [snapshot, setSnapshot] = useState<CheckPhoneSnapshot<CheckPhoneXiaohongshuPayload> | null>(null);
   const [selectedTab, setSelectedTab] = useState<XiaohongshuTabId>("home");
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
