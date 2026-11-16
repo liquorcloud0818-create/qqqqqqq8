@@ -63,3 +63,69 @@ export function useCharacterPlatformProfile(
 
   return profile;
 }
+/** Read platform profiles for multiple characters, keyed by character ID. */
+export function useCharacterPlatformProfiles(
+  characterIds: string[],
+  platformId: string,
+): Record<string, CharacterPlatformProfile> {
+  const characterIdsKey = JSON.stringify(
+    [...new Set(characterIds.map(id => id.trim()).filter(Boolean))]
+  );
+  const normalizedPlatformId = normalizePlatformAvatarId(platformId);
+  const [profiles, setProfiles] = useState<
+    Record<string, CharacterPlatformProfile>
+  >({});
+
+  useEffect(() => {
+    let active = true;
+    let requestId = 0;
+    const ids = JSON.parse(characterIdsKey) as string[];
+    const idSet = new Set(ids);
+
+    const refresh = async () => {
+      const currentRequestId = ++requestId;
+
+      const entries = await Promise.all(
+        ids.map(async characterId => {
+          const nicknames = loadCharacterPlatformNicknames(characterId);
+          const avatars = loadCharacterPlatformAvatars(characterId);
+          const assetId = avatars[normalizedPlatformId];
+          const avatarUrl = assetId
+            ? await resolvePlatformAvatarAsset(assetId)
+            : null;
+
+          return [
+            characterId,
+            {
+              nickname: nicknames[normalizedPlatformId] || "",
+              avatarUrl,
+            },
+          ] as const;
+        })
+      );
+
+      if (!active || currentRequestId !== requestId) return;
+      setProfiles(Object.fromEntries(entries));
+    };
+
+    const handleProfileUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ characterId?: string }>).detail;
+      if (!detail?.characterId || idSet.has(detail.characterId)) {
+        void refresh();
+      }
+    };
+
+    void refresh();
+    window.addEventListener(PLATFORM_AVATARS_UPDATED_EVENT, handleProfileUpdate);
+
+    return () => {
+      active = false;
+      window.removeEventListener(
+        PLATFORM_AVATARS_UPDATED_EVENT,
+        handleProfileUpdate
+      );
+    };
+  }, [characterIdsKey, normalizedPlatformId]);
+
+  return profiles;
+}
