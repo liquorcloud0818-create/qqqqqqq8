@@ -1920,7 +1920,7 @@ function CharArchiveView({
   onBack: () => void;
   onEdit: () => void;
   onCancelEdit?: () => void;
-  onSave?: (data: CharacterImportData, createVersion: boolean) => void;
+ onSave?: (data: CharacterImportData, createVersion: boolean, platformAvatars: Record<string, string>) => void;
   onRestoreVersion?: (version: CharacterVersion) => void;
   onDelete: () => void | Promise<void>;
   onExportJson: () => void;
