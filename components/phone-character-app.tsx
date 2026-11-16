@@ -2084,6 +2084,7 @@ function CharArchiveView({
       setTags(char.tags || []);
       setAvatar(char.avatar || null);
       setPlatformAvatars(loadCharacterPlatformAvatars(char.id));
+      setPlatformNicknames(loadCharacterPlatformNicknames(char.id));
       setPolaroidStyle(char.polaroidStyle ?? 0);
       setPolaroidSize(char.polaroidSize ?? "random");
       setPolaroidImageX(char.polaroidImageX ?? 50);
