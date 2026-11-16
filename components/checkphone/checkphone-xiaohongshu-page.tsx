@@ -18,7 +18,7 @@ import { generateCheckPhoneXiaohongshu } from "@/lib/checkphone-engine";
 import { clearPhoneSnapshot, loadPhoneSnapshot, savePhoneSnapshot } from "@/lib/checkphone-storage";
 import { normalizeBilingualTextInput, splitBilingualText } from "@/lib/bilingual-text";
 import { kvGet, kvSet } from "@/lib/kv-db";
-
+import { useCharacterPlatformProfile } from "@/components/character/use-character-platform-profile";
 type CheckPhoneXiaohongshuPageProps = {
   character: Character;
   onBack: () => void;
