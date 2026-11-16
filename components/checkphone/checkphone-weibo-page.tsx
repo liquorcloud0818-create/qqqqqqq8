@@ -351,7 +351,8 @@ export function CheckPhoneWeiboPage({
   character,
   onBack,
 }: CheckPhoneWeiboPageProps) {
-  const [snapshot, setSnapshot] =
+ const platformProfile = useCharacterPlatformProfile(character.id, "weibo");
+	const [snapshot, setSnapshot] =
     useState<CheckPhoneSnapshot<CheckPhoneWeiboPayload> | null>(null);
   const [selectedTab, setSelectedTab] = useState<WeiboTabId>("home");
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
