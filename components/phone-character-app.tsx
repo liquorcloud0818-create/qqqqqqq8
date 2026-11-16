@@ -333,6 +333,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
                 };
                 updateChars(characters.map((c) => (c.id === existing.id ? updated : c)));
                 saveCharacterPlatformAvatars(existing.id, platformAvatars);
+                saveCharacterPlatformNicknames(existing.id, platformNicknames);
                 setCharacterPhoneNumber(existing.id, data.wechatID || "");
                 setView({ type: "detail", id: existing.id, isEditing: false });
                 onNotice(createVersion
