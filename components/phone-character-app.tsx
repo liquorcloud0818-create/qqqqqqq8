@@ -2557,7 +2557,14 @@ function CharArchiveView({
           </div>
 
           <CharacterLanguageSettings value={preferences} onChange={setPreferences} editing={isEditing} identityId={identityForKnowledge?.id} identityName={identityForKnowledge?.name} defaultLevel={identityForKnowledge ? userKnowledgeLevel(loadCharacters().find(c=>c.id===char.id) || char, identityForKnowledge.id) : "known"} />
-
+          {(isEditing || Object.keys(platformAvatars).length > 0) && (
+         <PlatformAvatarSettings
+          value={platformAvatars}
+          onChange={setPlatformAvatars}
+          editing={isEditing}
+          onNotice={onNotice}
+  />
+)}
           {/* Personality — shown when editing or when has content */}
           {(isEditing || personality.trim()) && (
             <div className="char-log-entry mb-4 border-t border-dashed border-[#999] pt-3">
