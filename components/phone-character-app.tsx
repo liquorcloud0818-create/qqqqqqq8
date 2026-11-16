@@ -6,6 +6,7 @@ import { updateCharacterWorldRelation } from "@/lib/character-world-storage";
 import { CharacterLanguageSettings, type CharacterPreferences } from "./character/character-language-settings";
 import { PlatformAvatarSettings } from "@/components/character/platform-avatar-settings";
 import { loadCharacterPlatformAvatars, saveCharacterPlatformAvatars } from "@/lib/platform-avatar-storage";
+import { loadCharacterPlatformNicknames, saveCharacterPlatformNicknames } from "@/lib/character-platform-profile-storage";
 import { effectiveCommunicationLanguage } from "@/lib/character-language";
 import { loadChatSessions } from "@/lib/chat-storage";
 
