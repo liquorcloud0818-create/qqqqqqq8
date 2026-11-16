@@ -148,6 +148,7 @@ export function CheckPhoneDouyinPage({
   character,
   onBack,
 }: CheckPhoneDouyinPageProps) {
+  const platformProfile = useCharacterPlatformProfile(character.id, "douyin");
   const [snapshot, setSnapshot] =
     useState<CheckPhoneSnapshot<CheckPhoneDouyinPayload> | null>(null);
   const [selectedTab, setSelectedTab] = useState<DouyinTabId>("works");
