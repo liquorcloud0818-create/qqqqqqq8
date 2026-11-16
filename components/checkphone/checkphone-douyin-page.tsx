@@ -50,7 +50,7 @@ import {
   loadPhoneSnapshot,
   savePhoneSnapshot,
 } from "@/lib/checkphone-storage";
-
+import { useCharacterPlatformProfile } from "@/components/character/use-character-platform-profile";
 type CheckPhoneDouyinPageProps = {
   character: Character;
   onBack: () => void;
