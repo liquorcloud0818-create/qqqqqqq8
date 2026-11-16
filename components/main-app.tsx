@@ -1,5 +1,6 @@
 "use client";
 
+import { initializeShellLayout, isMobileShell } from "@/lib/mobile-shell";
 import {isAndroidApp} from "@/lib/android-runtime";
 import { ensureBuiltinAppleFont } from "@/lib/builtin-apple-font";
 import { useEffect, useState } from "react";
@@ -230,6 +231,18 @@ export function MainApp() {
   const [initAttempt, setInitAttempt] = useState(0);
 
   useEffect(() => {
+    initializeShellLayout();
+    let lastWidth = window.innerWidth;
+    const onResize = () => {
+      if (window.innerWidth === lastWidth) return;
+      lastWidth = window.innerWidth;
+      initializeShellLayout();
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     let recommendationCleanup: (() => void) | undefined;
 
@@ -270,7 +283,7 @@ export function MainApp() {
     })();
 
     // 安卓全屏兜底。是否请求全屏在每次点击时读取，设置切换后无需重载。
-    const isMobile = window.matchMedia("(max-width: 500px) and (hover: none) and (pointer: coarse)").matches;
+    const isMobile = isMobileShell();
     if (!isMobile) return () => {
       cancelled = true;
       recommendationCleanup?.();
