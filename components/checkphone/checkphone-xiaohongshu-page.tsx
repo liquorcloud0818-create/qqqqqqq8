@@ -1034,7 +1034,7 @@ export function CheckPhoneXiaohongshuPage({ character, onBack }: CheckPhoneXiaoh
                         <span>+</span>
                       </div>
                       <div className="cp-xhs-profile-meta">
-                        <h3>{payload.profile.name}<ChevronDown size={16} strokeWidth={2.3} /></h3>
+                        <h3>{platformProfile.nickname || payload.profile.name}<ChevronDown size={16} strokeWidth={2.3} /></h3>
                         <span>小红书号：{xiaohongshuNumericId}</span>
                         <span>IP 属地：未知</span>
                       </div>
