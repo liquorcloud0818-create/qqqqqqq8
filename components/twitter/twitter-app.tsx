@@ -34,7 +34,7 @@ import {
   type TwitterEngagement, type TwitterMessage, type TwitterPost, type TwitterProfile, type TwitterState,
 } from "@/lib/twitter-storage";
 import styles from "./twitter-app.module.css";
-
+import { useCharacterPlatformProfiles } from "@/components/character/use-character-platform-profile";
 type Tab = "home" | "explore" | "notices" | "messages";
 type Picker = "post" | "reply" | "dm" | null;
 type Props = { onClose: () => void; onNotice?: (text: string) => void };
