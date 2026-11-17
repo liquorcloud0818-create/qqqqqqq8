@@ -54,6 +54,7 @@ import {
 
 import { loadCharacters, CHARACTERS_UPDATED_EVENT } from "@/lib/character-storage";
 import type { Character } from "@/lib/character-types";
+import { useCharacterPlatformProfiles } from "@/components/character/use-character-platform-profile";
 import { resolveUserIdentity, USER_IDENTITIES_UPDATED_EVENT } from "@/lib/settings-storage";
 import {
   addWeverseComment,
