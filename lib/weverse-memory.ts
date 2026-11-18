@@ -140,7 +140,16 @@ export function loadWeverseProjectionEntries(characterId: string, options?: { af
       return [{ ...entry, content: entry.content.replace(/在「([^」]*)」Community 发布了 Artist Post/, "在 WVS 的「$1」社区发了艺人动态") }];
     }
     if (!/^weverse_live_(participant|viewer|replay)_/.test(entry.id)) return [entry];
-    if (!entry.id.startsWith("weverse_live_replay_") && !entry.content.startsWith("[Weverse 回放观看]")) return [];
+    if (!entry.id.startsWith("weverse_live_replay_") && !entry.content.startsWith("[Weverse 回放观看]")) {
+      const legacy = lives.find(row => entry.id === `weverse_live_participant_${row.id}_${characterId}` || entry.id === `weverse_live_viewer_${row.id}_${characterId}`);
+      if (!legacy || legacy.status !== "ended") return [];
+      // A saved old participation summary is evidence of that participant's knowledge.
+      // Prefer native replay reconstruction when available; never guess missing attendance.
+      const reconstructed = buildWeverseLiveMemory(legacy, characterId, "Weverse 社区", id => id === characterId ? "你" : "台上成员");
+      if (reconstructed.length && ((legacy.segments || []).length || (legacy.comments || []).length)) return [];
+      const actualHosts = (legacy.hostCharacterIds || []).filter(id => loadCharacters().some(c => c.id === id));
+      return [{...entry, sourceKeys: [`wvs:${legacy.id}`], shared: entry.id.startsWith("weverse_live_participant_") && actualHosts.length > 1}];
+    }
     const live = lives.find(row => entry.id === `weverse_live_replay_${row.id}_${characterId}` || entry.id === `weverse_live_viewer_${row.id}_${characterId}`);
     return live ? [{ ...entry, sourceKeys: [`wvs:${live.id}`], shared: false }] : [];
   });
@@ -152,7 +161,9 @@ export function loadWeverseProjectionEntries(characterId: string, options?: { af
     const community = communities.find(row => row.id === live.communityId);
     const names = (id: string) => community?.memberProfiles?.[id]?.displayName?.trim()
       || resolveLiveCharacterName(id);
-    entries.push(...buildWeverseLiveMemory(live, characterId, community?.name || "Weverse 社区", names));
+    const native = buildWeverseLiveMemory(live, characterId, community?.name || "Weverse 社区", names);
+    const legacy = entries.some(e => e.id === `weverse_live_participant_${live.id}_${characterId}` || e.id === `weverse_live_viewer_${live.id}_${characterId}`);
+    if (!legacy) entries.push(...native);
   }
   return entries.filter(entry => !options?.afterTimestamp || entry.timestamp > options.afterTimestamp)
     .sort((a, b) => a.timestamp.localeCompare(b.timestamp));

@@ -53,8 +53,15 @@ export function worldlineEnabledForApp(world: Worldline, appId: string): boolean
 }
 
 /** Shared facts are assembled afresh for every generation; local notes are deliberately omitted. */
-export function worldlineContextForApp(appId: string, options?: { publicEvents?: boolean; focusText?: string }): string {
-  const world = activeWorldline();
+export function worldlineContextForApp(appId: string, options?: { publicEvents?: boolean; focusText?: string; beforeTimestamp?: string }): string {
+  let world = activeWorldline();
+  if (world && options?.beforeTimestamp) {
+    const cutoff = Date.parse(options.beforeTimestamp);
+    const progressHistory = world.progressHistory.filter(p => Date.parse(p.recordedAt) <= cutoff);
+    world = { ...world, currentState: progressHistory.at(-1)?.text || "", progressHistory,
+      archive: world.archive.map(g => ({...g, entries: g.entries.filter(e => Date.parse(e.updatedAt) <= cutoff)})),
+      events: world.events.filter(e => Date.parse(e.occurredAt) <= cutoff) };
+  }
   if (!world || !worldlineEnabledForApp(world, appId)) return "";
   if (appId === "lysn") {
     const now=Date.now(),current=world.progressHistory?.at(-1)?.text||world.currentState;

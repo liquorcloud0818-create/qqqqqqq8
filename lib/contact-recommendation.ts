@@ -7,7 +7,7 @@ import { loadBindingConfig, resolveBinding, loadApiConfigs } from "./settings-st
 import { addFriendRequest, loadFriendRequests, dispatchFriendRequestUpdated } from "./friend-request-storage";
 const KEY = "ai_phone_contact_recommendations_v1";
 registerKvMigration(KEY);
-type Recommendation = {id:string;fromId:string;targetId:string;context:string;relationship:"stranger"|"known";dueAt?:number;message?:string;done?:boolean;retryAt?:number};
+type Recommendation = {id:string;fromId:string;targetId:string;context:string;relationship:"stranger"|"known";dueAt?:number;message?:string;done?:boolean;retryAt?:number;ignoredCount?:number};
 function read(): Recommendation[] { try { return JSON.parse(kvGet(KEY)||"[]"); } catch { return []; } }
 function write(items:Recommendation[]) { kvSet(KEY,JSON.stringify(items)); }
 export function eligibleRecommendationTargets(fromId:string) {
@@ -54,7 +54,7 @@ export async function processContactRecommendations() {
     if(!loadFriendRequests().some(r=>r.characterId===item.targetId && r.status==="pending")){
      const identity = resolveUserIdentity(item.targetId,"chat");
      if(identity) saveCharacters(loadCharacters().map(c=>c.id===item.targetId?{...c,userKnowledgeLevels:{...c.userKnowledgeLevels,[identity.id]:item.relationship}}:c));
-     addFriendRequest(item.targetId,item.message,1);dispatchFriendRequestUpdated();
+     addFriendRequest(item.targetId,item.message,(item.ignoredCount ?? 0) + 1,{source:"recommendation",recommendationId:item.id});dispatchFriendRequestUpdated();
     }
     write(read().map(i=>i.id===item.id?{...i,done:true}:i));
    }
@@ -68,6 +68,24 @@ export function startContactRecommendationScheduler() {
  return ()=>{clearInterval(timer);window.removeEventListener("focus",tick);document.removeEventListener("visibilitychange",tick);};
 }
 
+/** User choices on a recommendation-origin friend request.
+ * cancel cancels the invitation and all future follow-up; ignore allows at
+ * most one later attempt, without immediately spawning another request. */
+export function decideRecommendationRequest(recommendationId:string,decision:"cancel"|"ignore"|"add"){
+ const items=read(),index=items.findIndex(i=>i.id===recommendationId);
+ if(index<0)return false;
+ if(decision==="cancel"){write(items.filter(i=>i.id!==recommendationId));return true;}
+ if(decision==="ignore"){
+   const event=items[index];const ignored=(event.ignoredCount||0)+1;
+   if(ignored>=2){items[index]={...event,done:true,ignoredCount:ignored};}
+   else {
+     const days=1 + Math.floor(Math.random() * 3);
+     items[index]={...event,done:false,ignoredCount:ignored,retryAt:Date.now()+days*86400000,dueAt:undefined,message:undefined};
+   }
+   write(items);return true;
+ }
+ items[index]={...items[index],done:true};write(items);return true;
+}
 export function getRecommendationIntroduction(targetId:string, requestMessage?:string):string {
  const event=read().filter(e=>e.targetId===targetId&&e.done&&e.message&&(!requestMessage||e.message===requestMessage)).at(-1);
  if(!event)return "";

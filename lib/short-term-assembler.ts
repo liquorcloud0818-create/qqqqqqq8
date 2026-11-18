@@ -1,3 +1,4 @@
+import { contactIntroductionEntries } from "./contact-introduction";
 import {loadCity,cityEntries} from './icity-store';
 import { forwardedChatPrompt } from "./chat-forward";
 import {worldlineTimeLabel} from "./worldline-event-time";
@@ -69,6 +70,19 @@ function giftWasDeliveredWhenSent(msg: ChatMessage): boolean {
     return Boolean(deliveredAt && Date.parse(deliveredAt) <= Date.parse(msg.createdAt));
 }
 
+/** Bound one oversized native record without changing or deleting the stored original. */
+export function fitContextText(text: string, budget: number): string {
+    if (budget <= 0 || estimateTokens(text) <= budget) return text;
+    const notice = "\n[本条过长，仅展示首尾；中间内容未进入本轮上下文，完整原文仍在来源记录中]\n";
+    let low = 0, high = text.length;
+    while (low < high) {
+        const size = Math.ceil((low + high) / 2);
+        const candidate = text.slice(0, Math.ceil(size / 2)) + notice + text.slice(text.length - Math.floor(size / 2));
+        if (estimateTokens(candidate) <= budget) low = size; else high = size - 1;
+    }
+    return low ? text.slice(0, Math.ceil(low / 2)) + notice + text.slice(text.length - Math.floor(low / 2)) : "[内容超出本轮预算]";
+}
+
 export type NativeTimelineEntry = {
     id: string;
     sourceApp: "chat" | "sms" | "moments" | "story" | "vn" | "map" | "game" | "diary" | "xiaohongshu" | "weverse" | "twitter" | "interview_magazine" | "cocreate" | "checkphone" | "custom_app" | "worldline" | "phone";
@@ -85,6 +99,7 @@ export type NativeTimelineEntry = {
     momentsMeta?: NativeMomentMeta;
     shared?: boolean;
     sourceKeys?: string[];
+    knownByCharacterIds?: string[];
     customAppId?: string;
     customAppName?: string;
     customAppLabel?: string;
@@ -118,6 +133,9 @@ export type RecentBlock = {
 export type UnifiedRecentItem =
     | {
         kind: "event";
+        entryId?: string;
+        sourceKeys?: string[];
+        knownByCharacterIds?: string[];
         timestamp: string;
         sourceApp: NativeTimelineEntry["sourceApp"];
         sourceTag: string;
@@ -130,12 +148,13 @@ export type UnifiedRecentItem =
     };
 
 function isPromptHiddenChatMessage(
-    msg: Pick<ChatMessage, "mediaType" | "nativeToolResult" | "nativeToolCalls">,
+    msg: Pick<ChatMessage, "mediaType" | "mediaData" | "nativeToolResult" | "nativeToolCalls">,
     options?: { includeNativeToolHistory?: boolean },
 ): boolean {
     // 文本协议的 tool_call / tool_result 是正常上下文。只有原生工具轮的
     // 结构化残留按 includeNativeToolHistory 开关控制。
-    return (msg.nativeToolCalls?.length && !options?.includeNativeToolHistory)
+    return (msg.mediaType === "app_card" && msg.mediaData?.appName === "reverse_phone")
+        || (msg.nativeToolCalls?.length && !options?.includeNativeToolHistory)
         || (msg.mediaType === "tool_result" && !!msg.nativeToolResult && !options?.includeNativeToolHistory)
         || msg.mediaType === "tool_notice"
         || msg.mediaType === "memory_write_request";
@@ -187,6 +206,7 @@ export function loadNativeTimeline(
     options?: {
         afterTimestamp?: string;
         summaryWatermark?: boolean;
+        beforeTimestamp?: string;
         userName?: string;
         appId?: import("./settings-types").ContentAppId;
         excludeOfflineSessionId?: string;
@@ -295,6 +315,7 @@ export function loadNativeTimeline(
                 else if (msg.mediaType === "location") content = `[位置:${msg.mediaData?.label || ""}]`;
             }
 
+            if (msg.role === "assistant" && msg.status === "rejected") content += " [这条消息已发出但被对方拒收]";
             if (!content.trim()) continue;
 
             entries.push({
@@ -426,6 +447,7 @@ export function loadNativeTimeline(
                 }
             }
 
+            if (msg.role === "assistant" && msg.status === "rejected") content += " [这条消息已发出但被对方拒收]";
             if (!content.trim()) continue;
 
             entries.push({
@@ -584,6 +606,10 @@ export function loadNativeTimeline(
         });
     }
 
+    for (const event of contactIntroductionEntries(characterId)) {
+        if (options?.afterTimestamp && event.timestamp <= options.afterTimestamp) continue;
+        entries.push({ ...event, sourceApp: "chat", sourceDetail: "system" });
+    }
     // ── Story projections ──
     const storyEntries = loadStoryProjectionEntries(characterId, {
         afterTimestamp: options?.afterTimestamp,
@@ -593,6 +619,7 @@ export function loadNativeTimeline(
     for (const storyEntry of storyEntries) {
         entries.push({
             id: storyEntry.id,
+            shared: (storyEntry.participantIds?.filter(id => loadCharacters().some(c => c.id === id)).length || 0) > 1,
             sourceApp: "story",
             sourceDetail: "story",
             timestamp: storyEntry.timestamp,
@@ -676,7 +703,7 @@ export function loadNativeTimeline(
             id: gameEntry.id,
             sourceApp: "game",
             sourceDetail: "game",
-            shared: (gameEntry.participantIds?.length || 0) > 1,
+            shared: (gameEntry.participantIds?.filter(id => loadCharacters().some(c => c.id === id)).length || 0) > 1,
             authorType: "character",
             timestamp: gameEntry.timestamp,
             content: `${formatPromptEventLabel("小游戏", gameEntry.timestamp, timeAware, timestampOptions)} ${gameEntry.summary}`,
@@ -702,8 +729,8 @@ export function loadNativeTimeline(
 
     // Native iCity entries include historical backfill and exchange replies from user.
     const city=loadCity();
-    for(const e of cityEntries(city).filter(e=>!e.legacy&&(e.author===characterId||city.books.some(b=>b.id===e.book&&b.kind==='exchange'&&b.members.includes(characterId)))&&(!options?.afterTimestamp||e.createdAt>options.afterTimestamp))){
-      entries.push({id:e.id,sourceApp:'diary',sourceDetail:'diary_entry',sourceKeys:[`diary:${e.id}`],authorType:e.author==='user'?'user':'character',timestamp:e.createdAt,content:`[iCity日记 · ${e.createdAt}] ${city.accounts.find(a=>a.id===e.author)?.name||'作者'}：${e.title}\n${e.text}`});
+    for(const e of cityEntries(city).filter(e=>!e.legacy&&(e.author===characterId||city.books.some(b=>b.id===e.book&&(b.kind==='exchange'||b.kind==='joint')&&b.members.includes(characterId)))&&(!options?.afterTimestamp||e.createdAt>options.afterTimestamp))){
+      entries.push({shared:(city.books.find(b=>b.id===e.book)?.members.filter(id=>loadCharacters().some(c=>c.id===id)).length||0)>1,id:e.id,sourceApp:'diary',sourceDetail:'diary_entry',sourceKeys:[`diary:${e.id}`],authorType:e.author==='user'?'user':'character',timestamp:e.createdAt,content:`[iCity日记 · ${e.createdAt}] ${city.accounts.find(a=>a.id===e.author)?.name||'作者'}：${e.title}\n${e.text}`});
     }
 
     // ── Xiaohongshu projections ──
@@ -713,6 +740,7 @@ export function loadNativeTimeline(
     for (const xiaohongshuEntry of xiaohongshuEntries) {
         entries.push({
             id: xiaohongshuEntry.id,
+            sourceKeys: xiaohongshuEntry.sourceKeys,
             sourceApp: "xiaohongshu",
             sourceDetail: "xiaohongshu",
             authorType: "character",
@@ -830,7 +858,7 @@ export function loadNativeTimeline(
     }
 
     // ── Custom app timeline events ──
-    for (const message of loadLysn().messages.filter(message => message.characterId === characterId && message.sender === "artist" && message.kind !== "notice" && Number.isFinite(message.createdAt)).slice(-40)) {
+    for (const message of loadLysn().messages.filter(message => message.characterId === characterId && message.sender === "artist" && message.kind !== "notice" && !message.opener && Number.isFinite(message.createdAt)).slice(-40)) {
         const timestamp = new Date(message.createdAt).toISOString();
         if (options?.afterTimestamp && timestamp <= options.afterTimestamp) continue;
         const mediaLabel: Partial<Record<typeof message.kind, string>> = { photo: "照片", voice: "语音", sticker: "贴纸" };
@@ -850,7 +878,7 @@ export function loadNativeTimeline(
             }),
         });
     }
-    for (const event of loadQuestionBoxProjectionEntries(characterId, { afterTimestamp: options?.afterTimestamp })) {
+    for (const event of loadQuestionBoxProjectionEntries(characterId, { afterTimestamp: options?.afterTimestamp, beforeTimestamp: options?.beforeTimestamp })) {
         entries.push({
             id: event.id,
             sourceApp: "custom_app",
@@ -891,12 +919,12 @@ export function loadNativeTimeline(
 
     // Phone transcripts live in Phone storage, never in Chat messages.
     for (const call of loadPhoneState().calls) {
-        if (call.characterId !== characterId || call.status !== "completed" || !call.transcript.length) continue;
+        if (call.characterId !== characterId) continue;
         const timestamp = new Date(call.endedAt).toISOString();
         if (options?.afterTimestamp && timestamp <= options.afterTimestamp) continue;
         const conversation = call.transcript.map(line => `${line.role === "assistant" ? charName : userName}：${line.original}${line.translated ? `（译：${line.translated}）` : ""}`).join(" / ");
-        entries.push({ id: call.id, sourceApp: "phone", sourceDetail: "phone_call", timestamp,
-            content: `${formatPromptEventLabel("电话", timestamp, timeAware, timestampOptions)} ${call.direction === "outgoing" ? `${userName}拨给${charName}` : `${charName}拨给${userName}`}：${clipTimelineText(conversation, 2400)}` });
+        entries.push({ id: call.id, sourceApp: "phone", sourceDetail: "phone_call", sourceKeys: [`phone:${call.id}`], timestamp,
+            content: `${formatPromptEventLabel("电话", timestamp, timeAware, timestampOptions)} ${call.direction === "outgoing" ? `${userName}拨给${charName}` : `${charName}拨给${userName}`}：${({ completed: "已接通", missed: "未接", declined: "拒接", canceled: "已取消", busy: "忙线" } as const)[call.status]}。${conversation ? clipTimelineText(conversation, 2400) : "没有通话内容记录；不要推断原因"}` });
     }
 
     // One Worldline event is stored once. Each character sees only their explicit projection.
@@ -1026,6 +1054,7 @@ export function filterTimelineByAllowedSources(
     const rules = allowed ?? loadMemoryConfig().shortTermAllowedSources ?? {};
     return entries.filter(entry => {
         const source = entry.sourceApp;
+        if (entry.customAppId === "lysn") return rules.lysn !== false && rules.custom_app !== false;
         if (source === "chat") {
             if (entry.sourceDetail === "group") return rules.group_chat !== false;
             return rules.chat !== false;
@@ -1056,6 +1085,7 @@ export function prepareShortTermContext(
         excludeGroupSessionId?: string;
         excludeOfflineSessionId?: string;
         excludeSmsThreadId?: string;
+        excludeEntryIds?: string[];
         includeNativeToolHistory?: boolean;
         includeDirectChatEntries?: boolean;
         /** Freeze cross-app knowledge for an unfinished offline scene. */
@@ -1080,6 +1110,7 @@ export function prepareShortTermContext(
         excludeOfflineSessionId: options?.excludeOfflineSessionId,
         excludeSmsThreadId: options?.excludeSmsThreadId,
         afterTimestamp: options?.afterTimestamp,
+        beforeTimestamp: options?.beforeTimestamp,
         timeAware,
         promptTimestampOptions: options?.promptTimestampOptions,
     });
@@ -1092,10 +1123,12 @@ export function prepareShortTermContext(
     const wbActivationContext = timeline.slice(-10).map(e => e.content).join("\n");
     const budget = options?.tokenBudgetOverride ?? memConfig.shortTermTokenBudget;
     const currentTag = getFeatureTag(appId);
-    const history = options?.history ?? [];
+    const history = (options?.history ?? []).filter(m => !options?.beforeTimestamp || m.createdAt <= options.beforeTimestamp).map(m => ({...m, content: fitContextText(m.content, budget > 0 ? Math.max(1,budget - 4) : 0)}));
+    const suppliedIds = new Set([...history.map(m => m.id), ...(options?.excludeEntryIds || [])]);
+    timeline = timeline.filter(e => !suppliedIds.has(e.id));
     const characterName = loadCharacters().find(c => c.id === characterId)?.name ?? "角色";
     const wrapsCurrentHistory = appId === "chat" || appId === "sms" || appId === "group_chat" || appId === "story" || appId === "vn" || appId === "adventure";
-    const skipDirectChatEntries = appId === "chat" && !options?.includeDirectChatEntries;
+    const skipDirectChatEntries = appId === "chat" && history.length > 0 && !options?.includeDirectChatEntries;
 
     // ── Collect non-history entries per block ──
     const raw: { tag: string; order: number; entries: NativeTimelineEntry[] }[] = [];
@@ -1195,6 +1228,8 @@ export function prepareShortTermContext(
         raw.push({ tag: "recent_sms", order: FEATURE_ORDER.sms, entries: smsTimelineEntries });
     }
 
+    const systemEntries = timeline.filter(e => e.sourceApp === "chat" && e.sourceDetail === "system");
+    if (systemEntries.length) raw.push({tag: "recent_chat", order: FEATURE_ORDER.chat, entries: systemEntries});
     const groupChatEntries = timeline.filter(e =>
         e.sourceApp === "chat"
         && e.sourceDetail === "group"
@@ -1245,6 +1280,7 @@ export function prepareShortTermContext(
         | { kind: "entry"; timestamp: string; tokens: number; entryId: string; sourceTag: string }
         | { kind: "history"; timestamp: string; tokens: number; msgIdx: number };
 
+    for (const block of raw) block.entries = block.entries.map(e => ({...e, content: fitContextText(e.content, budget > 0 ? Math.max(1,budget - 4) : 0)}));
     const pool: PoolItem[] = [];
     const entryMeta = new Map<string, { entry: NativeTimelineEntry; sourceTag: string }>();
     for (const r of raw) {
@@ -1319,6 +1355,9 @@ export function prepareShortTermContext(
                 sourceApp: meta.entry.sourceApp,
                 sourceTag: meta.sourceTag,
                 text: meta.entry.content,
+                entryId: meta.entry.id,
+                sourceKeys: meta.entry.sourceKeys || [buildNativeTimelineKey(meta.entry)],
+                knownByCharacterIds: meta.entry.knownByCharacterIds,
             });
             continue;
         }
@@ -1374,11 +1413,16 @@ export function prepareGroupShortTermContext(
             if (entry.sourceApp === "chat" && entry.sourceDetail === "group" && entry.groupSessionId === options?.excludeGroupSessionId) {
                 continue;
             }
-            timelineByKey.set(buildNativeTimelineKey(entry), entry);
+            const key = buildNativeTimelineKey(entry);
+            const prior = timelineByKey.get(key);
+            timelineByKey.set(key, { ...entry, knownByCharacterIds: [...new Set([...(prior?.knownByCharacterIds || []), characterId])] });
         }
     }
 
-    const timeline = [...timelineByKey.values()].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    const timeline = [...timelineByKey.values()].map(entry => {
+        const names = (entry.knownByCharacterIds || []).map(id => loadCharacters().find(c => c.id === id)?.name || "该成员");
+        return { ...entry, content: `[知情范围：仅${names.join("、")}知道；其他成员不能当作自己的已知经历，除非已在群里被告知]\n${entry.content}` };
+    }).sort((a, b) => a.timestamp.localeCompare(b.timestamp));
     const activationPool = [
         ...timeline.map(entry => ({ timestamp: entry.timestamp, content: entry.content })),
         ...history.filter(msg => msg.mediaType !== "tool_notice").map(msg => ({ timestamp: msg.createdAt, content: msg.content })),
@@ -1473,6 +1517,8 @@ export function prepareGroupShortTermContext(
         raw.push({ tag: "recent_sms", order: FEATURE_ORDER.sms, entries: smsTimelineEntries });
     }
 
+    const systemEntries = timeline.filter(e => e.sourceApp === "chat" && e.sourceDetail === "system");
+    if (systemEntries.length) raw.push({tag: "recent_chat", order: FEATURE_ORDER.chat, entries: systemEntries});
     const groupChatEntries = timeline.filter(e => e.sourceApp === "chat" && e.sourceDetail === "group");
     if (groupChatEntries.length > 0) {
         raw.push({ tag: "recent_group_chat", order: FEATURE_ORDER.group_chat, entries: groupChatEntries });
@@ -1497,6 +1543,7 @@ export function prepareGroupShortTermContext(
         | { kind: "entry"; timestamp: string; tokens: number; entryId: string }
         | { kind: "history"; timestamp: string; tokens: number; msgIdx: number };
 
+    for (const block of raw) block.entries = block.entries.map(e => ({...e, content: fitContextText(e.content, budget > 0 ? Math.max(1,budget - 4) : 0)}));
     const pool: PoolItem[] = [];
     const entryMeta = new Map<string, NativeTimelineEntry>();
     for (const block of raw) {
@@ -1578,6 +1625,9 @@ export function prepareGroupShortTermContext(
                                                                     entry.sourceApp === "chat" ? "recent_chat" : "recent_events"
                 ),
                 text: entry.content,
+                entryId: entry.id,
+                sourceKeys: entry.sourceKeys || [buildNativeTimelineKey(entry)],
+                knownByCharacterIds: entry.knownByCharacterIds,
             });
             continue;
         }

@@ -21,6 +21,7 @@ import {
     type FriendRequest,
 } from "@/lib/friend-request-storage";
 import { handleAcceptFriendRequest, triggerRejectReaction } from "@/lib/friend-request-engine";
+import { decideRecommendationRequest } from "@/lib/contact-recommendation";
 import { PageShell } from "@/components/ui/page-shell";
 import { pinyin } from "pinyin-pro";
 import { kvSet } from "@/lib/kv-db";
@@ -227,6 +228,7 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
         setIsProcessing(true);
         try {
             const session = await handleAcceptFriendRequest(req.characterId, req.message);
+            if (req.source === "recommendation" && req.recommendationId) decideRecommendationRequest(req.recommendationId, "add");
             setSelectedRequest(null);
             setShowRequestList(false);
             refresh();
@@ -247,6 +249,20 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
 
             // Trigger AI's next attempt (fire-and-forget)
             triggerRejectReaction(req.characterId).catch(() => {});
+            refresh();
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleRecommendationChoice = (req: FriendRequest, decision: "cancel" | "ignore") => {
+        if (isProcessing) return;
+        setIsProcessing(true);
+        try {
+            if (req.recommendationId) decideRecommendationRequest(req.recommendationId, decision);
+            updateFriendRequestStatus(req.id, "abandoned");
+            dispatchFriendRequestUpdated();
+            setSelectedRequest(null);
             refresh();
         } finally {
             setIsProcessing(false);
@@ -477,20 +493,18 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
 
                             {/* Actions */}
                             <div className="flex gap-3 w-full">
-                                <button
-                                    onClick={() => handleReject(selectedRequest)}
-                                    disabled={isProcessing}
-                                    className="ui-btn ui-btn-ghost flex-1"
-                                >
-                                    拒绝
-                                </button>
-                                <button
-                                    onClick={() => handleAccept(selectedRequest)}
-                                    disabled={isProcessing}
-                                    className="ui-btn ui-btn-success flex-1"
-                                >
-                                    {isProcessing ? "处理中..." : "接受"}
-                                </button>
+                                {selectedRequest.source === "recommendation" ? (
+                                    <>
+                                        <button type="button" onClick={() => handleRecommendationChoice(selectedRequest,"cancel")} disabled={isProcessing} className="ui-btn ui-btn-ghost flex-1">取消</button>
+                                        <button type="button" onClick={() => handleRecommendationChoice(selectedRequest,"ignore")} disabled={isProcessing} className="ui-btn ui-btn-ghost flex-1">忽略</button>
+                                        <button type="button" onClick={() => handleAccept(selectedRequest)} disabled={isProcessing} className="ui-btn ui-btn-success flex-1">添加</button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button onClick={() => handleReject(selectedRequest)} disabled={isProcessing} className="ui-btn ui-btn-ghost flex-1">拒绝</button>
+                                        <button onClick={() => handleAccept(selectedRequest)} disabled={isProcessing} className="ui-btn ui-btn-success flex-1">{isProcessing ? "处理中..." : "接受"}</button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>

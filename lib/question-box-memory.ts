@@ -6,7 +6,7 @@ export type QuestionBoxProjectionEntry = { id: string; timestamp: string; conten
 const compact = (value: string, limit: number) => value.replace(/\s+/g, " ").trim().slice(0, limit);
 
 /** Derived from live box state: deleting a question or session also removes every associated event. */
-export function loadQuestionBoxProjectionEntries(characterId: string, options?: { afterTimestamp?: string }): QuestionBoxProjectionEntry[] {
+export function loadQuestionBoxProjectionEntries(characterId: string, options?: { afterTimestamp?: string; beforeTimestamp?: string }): QuestionBoxProjectionEntry[] {
   const events: QuestionBoxProjectionEntry[] = [];
   const sessions = loadBoxState().sessions.filter(box => box.ownerId === "user" || box.ownerId === characterId);
   const boxes = new Map(sessions.map(box => [box.id, box]));
@@ -23,6 +23,7 @@ export function loadQuestionBoxProjectionEntries(characterId: string, options?: 
           : box?.ownerId === "user" && question.senderId === characterId;
       });
       for (const [key, timestamp] of known) {
+        if (options?.beforeTimestamp && timestamp > options.beforeTimestamp) continue;
         if (!confirmations.has(key) || timestamp < confirmations.get(key)!) confirmations.set(key, timestamp);
       }
     }

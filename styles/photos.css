@@ -1036,3 +1036,38 @@
 .photos-album-create .photos-organize-actions>button{padding:10px 14px;border-radius:7px;background:#e1e9f3;color:#537ca3}
 
 .photos-generation-prompt { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+
+/* 053: Generated-image inspector uses Photos' own compact typography.
+   Keep long prompts readable without inheriting oversized global text rules. */
+.photos-app.photos-detail-view .photos-inspector-card,
+.photos-app.photos-detail-view .photos-setting-card,
+.photos-app.photos-detail-view .photos-meta-card {
+  font-family: var(--app-font-family, -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif);
+  font-size: calc(12px * var(--app-text-scale, 1));
+  line-height: 1.55;
+}
+.photos-app.photos-detail-view .photos-generation-prompt {
+  font: inherit;
+  font-size: calc(12px * var(--app-text-scale, 1));
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.photos-app.photos-detail-view .photos-inspector-heading strong,
+.photos-app.photos-detail-view .photos-setting-card strong {
+  font-size: calc(13px * var(--app-text-scale, 1));
+  line-height: 1.5;
+}
+.photos-app.photos-detail-view .photos-inspector-heading span,
+.photos-app.photos-detail-view .photos-setting-card span,
+.photos-app.photos-detail-view .photos-note,
+.photos-app.photos-detail-view .photos-edit-row > span {
+  font-size: calc(11px * var(--app-text-scale, 1));
+  line-height: 1.5;
+}
+.photos-app.photos-detail-view .photos-detail-action,
+.photos-app.photos-detail-view .photos-reference-btn,
+.photos-app.photos-detail-view .photos-stack-preview {
+  font-size: calc(12px * var(--app-text-scale, 1));
+}

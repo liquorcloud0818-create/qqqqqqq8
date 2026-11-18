@@ -385,6 +385,7 @@ export type StoryMessage = {
 };
 
 export type StoryProjectionEntry = {
+  participantIds?: string[];
   id: string;
   timestamp: string;
   content: string;
@@ -955,6 +956,7 @@ export function loadStoryProjectionEntries(
     const ts = formatChatTimestamp(current.createdAt);
     projections.push({
       id: `story_projection_${current.id}`,
+      participantIds: sessions.find(s => s.id === current.sessionId)?.participantIds,
       timestamp: current.createdAt,
       content: `[事件 ${ts}] ${summaryText}`,
     });

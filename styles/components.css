@@ -6036,3 +6036,10 @@
 }
 .modal-overlay:not(.modal-overlay-bottom) > .modal-sheet > .modal-body {min-height:0;overflow-y:auto}
 .modal-overlay:not(.modal-overlay-bottom) > .modal-sheet {animation:modalFadeIn .18s ease-out}
+
+/* 053 UI follow-up: all independent App binding entries use one neutral palette.
+   Desktop app theme colors and uploaded icon artwork must not recolor the grid. */
+.binding-app-grid .binding-app-card { --binding-accent: var(--c-text-secondary, #747b79) !important; }
+.binding-app-grid .binding-app-icon { color: var(--c-text-secondary, #747b79); background: var(--c-page-body-bg); }
+.binding-app-grid .binding-app-icon-glyph { --c-desktop-icon: var(--c-text-secondary, #747b79) !important; }
+.binding-app-grid .binding-app-icon-image { filter: grayscale(1); opacity: .8; }

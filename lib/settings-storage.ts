@@ -1125,18 +1125,14 @@ export function resolveBinding(
         if (slot.regexIds && slot.regexIds.length > 0) resolved.regexIds = [...slot.regexIds];
     };
 
-    // APP 默认高于全局默认；即使没有角色（例如群聊），也必须生效。
-    if (appId && config.appDefaults?.[appId]) {
-        applySlot(config.appDefaults[appId]!, false);
-    }
-
-    if (!characterId) return resolved;
-
-    // Apply character defaults
-    const charBinding = config.characterBindings.find(b => b.characterId === characterId);
-    if (charBinding) {
-        applySlot(charBinding.defaults);
-    }
+    const charBinding = characterId ? config.characterBindings.find(b => b.characterId === characterId) : undefined;
+    // The two Browser bindings are scoped to their own app. A world book/API chosen
+    // in "all APPs → Browser/反查手机浏览器" must override generic character defaults;
+    // the character's explicit override for this same Browser is still strongest.
+    const isolatedBrowser = appId === "browser" || appId === "checkphone_browser";
+    if (isolatedBrowser && charBinding) applySlot(charBinding.defaults);
+    if (appId && config.appDefaults?.[appId]) applySlot(config.appDefaults[appId]!, false);
+    if (!isolatedBrowser && charBinding) applySlot(charBinding.defaults);
 
     // 角色的专属 APP 覆盖是最精确的一层，优先级最高。
     if (appId && charBinding?.appOverrides[appId]) {

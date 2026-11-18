@@ -1,5 +1,6 @@
 import {inspectionAppAllowed} from './phone-inspection-settings';
 import {loadCity,cityEntries} from './icity-store';
+import {loadBrowserCollection} from './browser-collection';
 import {removedChatEntries} from './chat-list-entry';
 import {loadChatSessions,loadChatContacts,getLastVisibleSessionMessage,loadChatMessages,getChatMessagePreview} from './chat-storage';
 import {getLastChatOfflineTurn,getChatOfflineTurnPreview} from './chat-offline-storage';
@@ -9,13 +10,13 @@ import {loadMomentPosts,loadAllMomentComments} from './moments-storage';
 import {loadShoppingState} from './shopping-storage';
 import {loadBooks,loadChapters,loadProgress,hydrateReadingStorage} from './reading-storage';
 import {activeReverse,reverseCanSeeChat,saveReverse} from './reverse-phone-state';
-export type ReversePage={app:'chat'|'moments'|'shopping'|'reading'|'icity';view:'list'|'contacts'|'thread'|'cart'|'orders'|'book'|'diary';target?:string;offset:number;mode?:'shop'|'food'};
+export type ReversePage={app:'chat'|'moments'|'shopping'|'reading'|'browser'|'icity';view:'list'|'contacts'|'thread'|'cart'|'orders'|'book'|'site'|'video'|'diary';target?:string;offset:number;mode?:'shop'|'food'};
 export function reverseSessionName(id:string){const s=loadChatSessions().find(x=>x.id===id);const c=loadCharacters().find(c=>c.id===s?.contactId);return s?.isGroup?s.groupName||'群聊':s?.alias||(c?resolveChatCharacterDisplayName(c):'联系人');}
 export async function reverseOverview(owner=activeReverse()?.owner){
  const allowed=(app:string)=>!owner||inspectionAppAllowed(owner,app);
  if(allowed('reading'))await hydrateReadingStorage();const shopping=allowed('shopping')?loadShoppingState():null;
  const city=allowed('icity')?loadCity():null;
- return {apps:[...(allowed('chat')?['chat','moments']:[]),...(allowed('shopping')?['shopping']:[]),...(city&&(cityEntries(city).some(e=>e.author==='user')||city.books.some(b=>b.kind==='exchange'&&b.members.includes('user')))?['icity']:[]),...(allowed('reading')&&loadBooks().length?['reading']:[])],chatCount:allowed('chat')?visibleSessions().length:0,contactCount:allowed('chat')?loadChatContacts().length:0,cartCount:shopping?shopping.cartItems.length+shopping.foodCartItems.length:0,bookCount:allowed('reading')?loadBooks().length:0};
+ return {apps:[...(allowed('chat')?['chat','moments']:[]),...(allowed('shopping')?['shopping']:[]),...(allowed('browser')?['browser']:[]),...(city&&(cityEntries(city).some(e=>e.author==='user')||city.books.some(b=>b.kind==='exchange'&&b.members.includes('user')))?['icity']:[]),...(allowed('reading')&&loadBooks().length?['reading']:[])],chatCount:allowed('chat')?visibleSessions().length:0,contactCount:allowed('chat')?loadChatContacts().length:0,cartCount:shopping?shopping.cartItems.length+shopping.foodCartItems.length:0,bookCount:allowed('reading')?loadBooks().length:0};
 }
 export async function readReversePage(page:ReversePage):Promise<{label:string;content:string;messageIds?:string[];postIds?:string[];itemIds?:string[]}>{
  const owner=activeReverse()?.owner;if(owner&&!inspectionAppAllowed(owner,page.app))throw Error('user已关闭该查看范围');
@@ -39,6 +40,7 @@ export async function readReversePage(page:ReversePage):Promise<{label:string;co
  if(page.app==='chat'&&page.view!=='contacts')return{label:'查看了你的Chat列表',content:JSON.stringify(visibleSessions().slice(page.offset*8,page.offset*8+8).map(s=>({id:s.id,name:reverseSessionName(s.id),isGroup:!!s.isGroup,preview:getLastVisibleSessionMessage(s.id)?getChatMessagePreview(getLastVisibleSessionMessage(s.id)!):getChatOfflineTurnPreview(getLastChatOfflineTurn(s.id))})))};
  if(page.app==='chat'&&page.view==='contacts')return{label:'查看了你的联系人',content:JSON.stringify(loadChatContacts().slice(page.offset*12,page.offset*12+12).map(c=>({id:c.characterId,sessionId:loadChatSessions().find(s=>s.contactId===c.characterId&&!s.isGroup&&reverseCanSeeChat(s.id))?.id,name:(()=>{const char=loadCharacters().find(x=>x.id===c.characterId);return char?resolveChatCharacterDisplayName(char):'联系人';})()})))};
  if(page.app==='moments'){const visit=activeReverse();let ids=visit?.momentWindow;if(!ids){ids=loadMomentPosts().slice(0,3+Math.floor(Math.random()*3)).map(p=>p.id);if(visit)saveReverse({...visit,momentWindow:ids});}const wanted=new Set(ids),posts=loadMomentPosts().filter(p=>wanted.has(p.id));return{label:'查看了你的朋友圈',content:JSON.stringify({posts:posts.map(p=>({id:p.id,author:p.authorId,authorType:p.authorType,text:p.content,photoDescription:p.photoDescription,time:p.createdAt})),comments:loadAllMomentComments().filter(c=>wanted.has(c.postId)).map(c=>({postId:c.postId,author:c.authorId,text:c.content}))}),postIds:posts.map(p=>p.id)};}
+ if(page.app==='browser'){const s=loadBrowserCollection('user');if(page.view==='video'){const video=[...s.items,...s.favorites].find(v=>v.id===page.target);if(!video)throw Error('这条浏览器内容已经不存在');return {label:'查看了浏览器条目详情',content:JSON.stringify(video)};}return {label:page.view==='site'?'查看了浏览器第二页':'查看了浏览器首页',content:JSON.stringify(page.view==='site'?{kind:'虚构媒体网站',items:s.items.map(v=>({id:v.id,title:v.title,author:v.author,tags:v.tags})),favorites:s.favorites.map(v=>({id:v.id,title:v.title})),opened:s.opened,empty:!s.items.length&&!s.favorites.length}:{searches:s.history,notice:'这是实际保存的搜索记录；未生成条目不代表看过。第二页可以发现网站外观，但不能虚构搜索或观看行为。'})};}
  if(page.app==='shopping'){const state=loadShoppingState();let rows:{id:string}[]=page.view==='orders'?state.orders.filter(o=>(o.mode||'shop')===(page.mode||'shop')&&!o.canceledAt):(page.mode==='food'?state.foodCartItems:state.cartItems);if(typeof document!=='undefined'){const ids=new Set(Array.from(document.querySelectorAll<HTMLElement>('[data-active-app="shopping"] [data-reverse-shopping-id]')).map(e=>e.dataset.reverseShoppingId));rows=rows.filter(r=>ids.has(r.id));}const part=rows.slice(page.offset*5,page.offset*5+5);return{label:page.view==='orders'?(page.mode==='food'?'查看了你的外卖记录':'查看了你的购物记录'):(page.mode==='food'?'查看了你的外卖购物车':'查看了你的购物车'),content:JSON.stringify(part),itemIds:part.map(r=>r.id)};}
 
  const books=loadBooks();if(page.view!=='book')return{label:'查看了你的书架',content:JSON.stringify(books.map(b=>({id:b.id,title:b.title,author:b.author})))};

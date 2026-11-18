@@ -225,6 +225,7 @@ function normalizeGameProjectionEntry(value: unknown): GameProjectionEntry | nul
     templateTitle,
     characterId,
     characterName,
+    participantIds: Array.isArray(record.participantIds) ? [...new Set(record.participantIds.filter((id): id is string => typeof id === "string" && !!id))] : undefined,
     playerName: playerName || "玩家",
     summary,
     timestamp: cleanText(record.timestamp, 80) || new Date().toISOString(),
@@ -513,7 +514,7 @@ export function loadGameProjectionEntries(
   const id = cleanText(characterId, 160);
   if (!id) return [];
   const entries = loadGameState().gameEvents
-    .filter(entry => entry.characterId === id)
+    .filter(entry => (entry.characterId === id || entry.participantIds?.includes(id)))
     .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
   if (!options?.afterTimestamp) return entries;
   return entries.filter(entry => entry.timestamp > options.afterTimestamp!);

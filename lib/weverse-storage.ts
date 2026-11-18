@@ -1,3 +1,4 @@
+import { queueNativeMemoryUpdate } from "./native-memory-update";
 import { reconcileCalendarMaster } from "./calendar-master";
 import type { PhotoStorySnapshot } from "./photo-story-data";
 import { deleteWeverseLiveMemory } from "./weverse-memory";
@@ -228,7 +229,7 @@ function normalizeLive(raw: unknown): WeverseLive | null {
   const participantPresenceRaw = Array.isArray((item as any).participantPresence) ? (item as any).participantPresence : [];
   const participantPresence = participantPresenceRaw.map(normalizeLivePresence).filter((v: WeverseLivePresence | null): v is WeverseLivePresence => Boolean(v));
   if (!participantPresence.length) {
-    for (const characterId of (status === "ended" ? hostCharacterIds.slice(0, 1) : hostCharacterIds)) participantPresence.push({ characterId, joinedAt: startedAt, leftAt: status === "ended" ? (typeof item.endedAt === "number" ? item.endedAt : startedAt) : undefined });
+    for (const characterId of hostCharacterIds) participantPresence.push({ characterId, joinedAt: startedAt, leftAt: status === "ended" ? (typeof item.endedAt === "number" ? item.endedAt : startedAt) : undefined });
   }
   const viewerPresenceRaw = Array.isArray((item as any).viewerPresence) ? (item as any).viewerPresence : [];
   const viewerPresence = viewerPresenceRaw.map(normalizeLivePresence).filter((v: WeverseLivePresence | null): v is WeverseLivePresence => Boolean(v));
@@ -328,7 +329,7 @@ function normalizeState(raw: unknown): WeverseState {
   return { version: 8, communities, posts, notices, lives, schedules, userProfile: source.userProfile && typeof source.userProfile === "object" ? source.userProfile as WeverseUserProfile : {}, settings: normalizeSettings(source.settings) };
 }
 export function loadWeverseState(): WeverseState { reconcileCalendarMaster(); if (typeof window === "undefined") return EMPTY_STATE; try { const raw=kvGet(WEV_STATE_KEY); return raw ? normalizeState(JSON.parse(raw)) : cloneEmpty(); } catch { return cloneEmpty(); } }
-export function saveWeverseState(state: WeverseState): WeverseState { const normalized=normalizeState(state); if (typeof window !== "undefined") { kvSet(WEV_STATE_KEY, JSON.stringify(normalized)); reconcileCalendarMaster(); window.dispatchEvent(new CustomEvent(WEV_UPDATED_EVENT)); } return typeof window!=="undefined"?normalizeState(JSON.parse(kvGet(WEV_STATE_KEY)||JSON.stringify(normalized))):normalized; }
+export function saveWeverseState(state: WeverseState): WeverseState { let previous=cloneEmpty();try{previous=normalizeState(JSON.parse(kvGet(WEV_STATE_KEY)||"{}"));}catch{} const normalized=normalizeState(state); if (typeof window !== "undefined") { kvSet(WEV_STATE_KEY, JSON.stringify(normalized)); for(const live of normalized.lives) if(live.status === "ended" && previous.lives.find(p=>p.id===live.id)?.status !== "ended") queueNativeMemoryUpdate([...new Set([...live.hostCharacterIds,...live.participantPresence.map(p=>p.characterId),...live.viewerPresence.map(p=>p.characterId)])], "weverse"); reconcileCalendarMaster(); window.dispatchEvent(new CustomEvent(WEV_UPDATED_EVENT)); } return typeof window!=="undefined"?normalizeState(JSON.parse(kvGet(WEV_STATE_KEY)||JSON.stringify(normalized))):normalized; }
 export function updateWeverseUserProfile(patch: Partial<WeverseUserProfile>): WeverseState { const state=loadWeverseState(); return saveWeverseState({...state,userProfile:{...(state.userProfile||{}),...patch}}); }
 
 export function getWeverseCommunitiesForCharacter(characterId: string): WeverseCommunity[] {

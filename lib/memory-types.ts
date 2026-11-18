@@ -46,6 +46,9 @@ export type MemoryConfig = {
         custom_app?: boolean;
         worldline?: boolean;
         phone?: boolean;
+        sms?: boolean;
+        twitter?: boolean;
+        lysn?: boolean;
     };
 };
 

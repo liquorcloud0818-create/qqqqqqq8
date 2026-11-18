@@ -1,3 +1,4 @@
+import { queueNativeMemoryUpdate } from "./native-memory-update";
 import {loadMemoryEntries,deleteMemoryEntries,saveMemoryEntry} from './memory-storage';
 import {projectMemoryEntry} from './memory-event-meta';
 import {revokeMemorySources} from './memory-event-meta';
@@ -19,7 +20,7 @@ const KEY='ai_phone_icity_v1';registerKvMigration(KEY);
 export const CITY_EVENT='icity-updated';
 export const cityId=()=>globalThis.crypto?.randomUUID?.()||`city_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 export const personalBook=(id:string)=>`personal:${id}`;
-export function saveCity(s:CityState){kvSet(KEY,JSON.stringify(s));if(typeof window!=='undefined')window.dispatchEvent(new Event(CITY_EVENT));}
+export function saveCity(s:CityState){let previous:CityState|null=null;try{previous=JSON.parse(kvGet(KEY)||'null');}catch{}const before=new Set((previous?.entries||[]).map(e=>e.id));kvSet(KEY,JSON.stringify(s));for(const e of s.entries.filter(e=>!before.has(e.id))){const members=s.books.find(b=>b.id===e.book)?.members||[];queueNativeMemoryUpdate([e.author,...members],'diary');}if(typeof window!=='undefined')window.dispatchEvent(new Event(CITY_EVENT));}
 export function loadCity():CityState{
  let s:CityState;try{s=JSON.parse(kvGet(KEY)||'null');}catch{s=null as unknown as CityState;}
  if(!s||s.schema!==1)s={schema:1,theme:'day',accounts:[],books:[],entries:[],meta:{},friends:[],requests:[],comments:[],likes:{},notices:[]};
@@ -80,7 +81,7 @@ export function addCityEntry(s:CityState,author:string,bookId:string,text:string
  if(!old)for(const id of b.members)if(id!==author)cityNotice(s,id,`${s.accounts.find(x=>x.id===author)?.name}更新了「${b.name}」`,{entry:entry.id,book:b.id});saveCity(s);return entry;
 }
 export function setCityEntryScope(s:CityState,e:CityEntry,visibility:Visibility,selected:string[]){if(e.legacy)s.meta[e.id]={...s.meta[e.id],book:e.book,visibility,selected};else{s.entries=s.entries.map(x=>x.id===e.id?{...x,visibility,selected}:x);}saveCity(s);}
-export function removeCityEntry(s:CityState,e:CityEntry){if(e.legacy)deleteDiaryEntry(e.id);s.entries=s.entries.filter(x=>x.id!==e.id);delete s.meta[e.id];delete s.likes[e.id];s.comments=s.comments.filter(x=>x.entry!==e.id);s.notices=s.notices.filter(x=>x.entry!==e.id);saveCity(s);}
+export function removeCityEntry(s:CityState,e:CityEntry){revokeMemorySources([`diary:${e.id}`]);if(e.legacy)deleteDiaryEntry(e.id);s.entries=s.entries.filter(x=>x.id!==e.id);delete s.meta[e.id];delete s.likes[e.id];s.comments=s.comments.filter(x=>x.entry!==e.id);s.notices=s.notices.filter(x=>x.entry!==e.id);saveCity(s);}
 export function toggleCityLike(s:CityState,e:CityEntry,actor:string){if(e.visibility==='private')throw Error('私密日记不能点赞');if(!canReadCity(s,e,actor))throw Error('无权查看这篇日记');const ids=s.likes[e.id]||[];const adding=!ids.includes(actor);s.likes[e.id]=adding?[...ids,actor]:ids.filter(x=>x!==actor);if(adding&&actor!==e.author)cityNotice(s,e.author,`${s.accounts.find(x=>x.id===actor)?.name}喜欢了你的日记`,{entry:e.id});saveCity(s);}
 export function commentCity(s:CityState,e:CityEntry,actor:string,text:string){if(!canReadCity(s,e,actor))throw Error('无权查看这篇日记');if(!text.trim())return;s.comments.push({id:cityId(),entry:e.id,author:actor,text:text.trim().slice(0,2000),createdAt:new Date().toISOString()});if(actor!==e.author)cityNotice(s,e.author,`${s.accounts.find(x=>x.id===actor)?.name}评论了你的日记`,{entry:e.id});saveCity(s);}
 export function createCityBook(s:CityState,name:string,kind:'joint'|'exchange',members:string[]){

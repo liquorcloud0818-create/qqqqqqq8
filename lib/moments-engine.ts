@@ -233,7 +233,7 @@ async function resolveAssemblerInput(
     let coreMemories = "";
     let longTermMemories = "";
     const memConfig = loadMemoryConfig();
-    if (task !== "npc") {
+    if (task !== "npc" && task !== "npc_reply") {
         try {
             const coreResultsPromise = retrieveCoreMemoriesForPrompt(characterId, memConfig);
             // Use native timeline as retrieval context (same cross-app data as short-term memory)
@@ -268,7 +268,7 @@ async function resolveAssemblerInput(
 
     // 9. Build AssemblerInput — unified short-term context
     const isNPC = task === "npc" || task === "npc_reply";
-    const { recentBlocks, wbActivationContext, unifiedRecentItems } = prepareShortTermContext(characterId, "moments");
+    const { recentBlocks, wbActivationContext, unifiedRecentItems } = isNPC ? { recentBlocks: [], wbActivationContext: "", unifiedRecentItems: [] } : prepareShortTermContext(characterId, "moments");
 
     // Calendar schedule (NPC doesn't get character's schedule)
     const scheduleSummary = isNPC ? undefined : buildCalendarScheduleMarker("character", characterId, getWeekStartIso(new Date()));

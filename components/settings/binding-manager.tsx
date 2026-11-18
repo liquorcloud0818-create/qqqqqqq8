@@ -27,12 +27,6 @@ import { CUSTOM_APPS_UPDATED_EVENT, loadInstalledCustomApps } from "@/lib/custom
 import { toCustomAppIconId } from "@/lib/custom-app-types";
 import type { InstalledCustomApp } from "@/lib/custom-app-types";
 
-/** Map ContentAppId → IconId (only needed where they differ) */
-const APP_ICON_MAP: Partial<Record<ContentAppId, IconId>> = {
-    adventure: "mapmode",
-    twitter: "twitter",
-};
-const appIconId = (appId: ContentAppId): IconId => APP_ICON_MAP[appId] ?? appId as IconId;
 import type {
     BindingConfig,
     BindingSlot,
@@ -45,8 +39,8 @@ import type {
     WorldBookConfig,
     RegexConfig,
 } from "@/lib/settings-types";
-import { CONTENT_APP_IDS, CONTENT_APP_LABELS } from "@/lib/settings-types";
-import { BINDING_ACCENTS, CONTENT_APP_ACCENTS } from "@/lib/ui-accent-colors";
+import { CONTENT_APP_LABELS } from "@/lib/settings-types";
+import { BINDING_ACCENTS } from "@/lib/ui-accent-colors";
 import {
     loadBindingConfig,
     saveBindingConfig,
@@ -97,7 +91,6 @@ const AUX_FIELD_VISUALS: Record<AuxBindingField, { icon: LucideIcon; color: stri
     qaApiConfigId: { icon: Wrench, color: BINDING_ACCENTS.api },
 };
 
-const APP_OVERRIDE_COLORS = CONTENT_APP_ACCENTS;
 const REGEX_BINDABLE_APP_IDS: ContentAppId[] = ["chat", "group_chat", "story"];
 
 const bindingAccentStyle = (color: string): CSSProperties => ({
@@ -179,7 +172,9 @@ export function BindingManager() {
     const getAppLabel = (appId: string): string => {
         const customApp = getCustomAppByBindingId(appId);
         if (customApp) return customApp.name;
-        return CONTENT_APP_LABELS[appId as ContentAppId] ?? appId;
+        if (appId === "checkphone_browser") return "反查手机浏览器";
+        const icon = (Object.keys(ICONS) as IconId[]).find(key => (key === "mapmode" ? "adventure" : key) === appId);
+        return icon ? ICONS[icon].label : (CONTENT_APP_LABELS[appId as ContentAppId] ?? appId);
     };
 
     // Auto-clean stale binding IDs when resource lists change
@@ -394,10 +389,14 @@ export function BindingManager() {
         const binding = getCharacterBinding(config, selectedCharId);
         if (level === "character") return inherited;
         // APP 默认先于角色默认；角色绑定优先级更高。
+        // Browser app-global bindings take priority over generic character defaults;
+        // character-specific Browser overrides still win when resolving the final slot.
+        const browserScope = selectedAppId === "browser" || selectedAppId === "checkphone_browser";
+        if (browserScope) mergeSlotInto(inherited, binding.defaults);
         if (level === "app" && selectedAppId) {
             mergeSlotInto(inherited, config.appDefaults?.[selectedAppId]);
         }
-        mergeSlotInto(inherited, binding.defaults);
+        if (!browserScope) mergeSlotInto(inherited, binding.defaults);
         return inherited;
     };
 
@@ -458,16 +457,31 @@ export function BindingManager() {
     const currentSlot = getCurrentSlot();
     const inheritedSlot = getInheritedSlot();
     const inheritLabel = getInheritLabel();
+    const desktopBindingIds: Partial<Record<IconId, string>> = {
+        mapmode: "adventure",
+    };
+    const nonContentIcons = new Set<IconId>(["settings", "theme", "resources", "characters", "appmarket", "resource_hub"]);
     const appOverrideEntries = [
-        ...CONTENT_APP_IDS
-            .filter(appId => appIconId(appId) in ICONS)
-            .map(appId => ({
-                id: appId as string,
-                label: CONTENT_APP_LABELS[appId],
-                iconId: appIconId(appId),
-                iconDataUrl: null as string | null,
-                color: APP_OVERRIDE_COLORS[appId],
-            })),
+        ...(Object.keys(ICONS) as IconId[])
+            .filter(iconId => !nonContentIcons.has(iconId))
+            .map(iconId => {
+                const id = desktopBindingIds[iconId] ?? iconId;
+                return {
+                    id,
+                    label: ICONS[iconId].label,
+                    iconId,
+                    iconDataUrl: null as string | null,
+                    color: ICONS[iconId].tone.startsWith("var(") ? "#74848a" : ICONS[iconId].tone,
+                };
+            }),
+        // The orange Browser inside Check Phone is an independent app binding, not the Chat/checkphone default.
+        {
+            id: "checkphone_browser",
+            label: "反查手机浏览器",
+            iconId: "browser" as IconId,
+            iconDataUrl: null as string | null,
+            color: "#74848a",
+        },
         ...customApps.map(app => ({
             id: toCustomAppIconId(app.id) as string,
             label: app.name,

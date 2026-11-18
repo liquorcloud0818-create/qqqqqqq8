@@ -6,6 +6,7 @@ import { loadCharacters } from "./character-storage";
 import type { Character } from "./character-types";
 import type { UserIdentity } from "@/components/settings/user-identity";
 import { previewMessagesForApi, sendLLMRequest, ChatEngineError } from "./chat-engine";
+import { prepareCharacterMemory } from "./character-memory-context";
 import { assemblePromptPayload, type LLMMessage } from "./llm-prompt-assembler";
 import { MacroEngine } from "./macro-engine";
 import { normalizeUserNameToMacro } from "./user-macro";
@@ -627,7 +628,9 @@ export async function generateCharacterInterviewAnswer(params: {
     .map((message) => message.content)
     .join("\n\n");
 
+  const cognition = await prepareCharacterMemory(guest.character.id, INTERVIEW_MAGAZINE_APP_ID, params.question);
   const llmMessages = assemblePromptPayload({
+    ...cognition,
     character: guest.character,
     history: [],
     preset: guest.preset,
@@ -652,6 +655,7 @@ export async function generateCharacterInterviewAnswer(params: {
   });
 
   llmMessages.push({ role: "system", content: [
+    "私人记忆仅是嘉宾本人的认知，不代表主持人、其他嘉宾或匿名听众知道；按公开采访场景决定表达，不披露未公开关系或他人秘密。",
     "在场采访双语要求：请以嘉宾本人自然会使用的语言回答，保留嘉宾原话。",
     "如果原话是韩语、日语、英语等非中文，整段输出必须是“原文 | 准确中文译文”，只使用一个竖线分隔，不要附加标签、动作或主持人的话。",
     "嘉宾自然使用中文时只输出中文原话，不重复翻译。问题、系统说明和记忆摘要不需要双语。",

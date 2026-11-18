@@ -160,7 +160,7 @@ async function resolveCharacterGeneration(characterId: string, community: Wevers
     regexes,
     userIdentity,
     appId: "weverse",
-    appTags: ["weverse", "public-community"],
+    appTags: ["weverse", "public-community", ...(historical ? ["historical"] : [])],
     longTermMemories: formatLongTermMemories(memories),
     coreMemories: formatCoreMemories(coreMemories),
     scheduleSummary,
@@ -210,7 +210,7 @@ export async function generateWeverseArtistPost(characterId: string, community: 
     prompt,
     resolved.regexes,
     { characterName: `Weverse:${resolved.character.name}`, userName: resolved.userName },
-    { appId: "weverse", translationCharacterId: characterId, appTags: ["weverse", "post"], skipOutputRegex: true },
+    { appId: "weverse", translationCharacterId: characterId, appTags: ["weverse", "post"], skipOutputRegex: true, skipWorldline: options?.historical === true },
   );
   const parsed = extractJsonObject(raw);
   const original = String(parsed?.original ?? "").trim();
@@ -312,7 +312,7 @@ export async function generateWeverseOfficialPost(
     messages,
     resolved.regexes,
     { characterName: `Weverse Official:${community.name}` },
-    { appId: "weverse", appTags: ["weverse", "official-post"], skipOutputRegex: true },
+    { appId: "weverse", appTags: ["weverse", "official-post"], skipOutputRegex: true, skipWorldline: options?.historical === true },
   );
   const parsed = extractJsonObject(raw);
   const original = String(parsed?.original ?? "").trim();
@@ -359,7 +359,7 @@ export async function generateWeverseOfficialNotice(
     },
     { role: "user", content: "现在生成一条正式 Weverse Notice。" },
   ];
-  const raw = await sendLLMRequest(resolved.apiConfig, resolved.preset, messages, resolved.regexes, { characterName: `Weverse Notice:${community.name}` }, { appId: "weverse", appTags: ["weverse", "official-notice"], skipOutputRegex: true });
+  const raw = await sendLLMRequest(resolved.apiConfig, resolved.preset, messages, resolved.regexes, { characterName: `Weverse Notice:${community.name}` }, { appId: "weverse", appTags: ["weverse", "official-notice"], skipOutputRegex: true, skipWorldline: options?.historical === true });
   const parsed = extractJsonObject(raw);
   const title = String(parsed?.title ?? "").trim();
   const original = String(parsed?.original ?? "").trim();
@@ -458,7 +458,7 @@ export async function generateWeverseFanBatch(
     },
     { role: "user", content: targetPost ? "给这条帖子追加一批自然的粉丝评论。" : "生成这一轮自然的粉丝社区内容。" },
   ];
-  const raw = await sendLLMRequest(resolved.apiConfig, resolved.preset, messages, resolved.regexes, { characterName: `Weverse:${community.name}` }, { appId: "weverse", appTags: ["weverse", "fan"], skipOutputRegex: true });
+  const raw = await sendLLMRequest(resolved.apiConfig, resolved.preset, messages, resolved.regexes, { characterName: `Weverse:${community.name}` }, { appId: "weverse", appTags: ["weverse", "fan"], skipOutputRegex: true, skipWorldline: options?.historical === true });
   const parsed = extractJsonObject(raw);
   const fanPosts = normalizeBilingualItems(parsed?.posts).slice(0, counts.maxPosts).map(({ displayName, original, translated }) => ({ displayName, original, translated }));
   const allowedReplyIds = new Set(targetPost?.comments.map((comment) => comment.id) || []);
@@ -508,7 +508,7 @@ export async function generateWeverseArtistReply(
     ],
     resolved.regexes,
     { characterName: `Weverse:${resolved.character.name}`, userName: resolved.userName },
-    { appId: "weverse", appTags: ["weverse", "comment-reply"], skipOutputRegex: true },
+    { appId: "weverse", appTags: ["weverse", "comment-reply"], skipOutputRegex: true, skipWorldline: options?.historical === true },
   );
   const parsed = extractJsonObject(raw);
   if (parsed?.reply === false || String(parsed?.reply).toLowerCase() === "false") return null;

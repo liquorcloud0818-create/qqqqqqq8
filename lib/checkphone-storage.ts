@@ -1,5 +1,6 @@
 import {reconciliationMemory} from './phone-reconcile';
 import {reverseMemory} from "./reverse-phone-state";
+import {secretInspectionProjectionEntries} from "./secret-phone-inspection";
 import {phonePlayMemory,visitMemory} from "./checkphone-play";
 import Dexie from "dexie";
 import { CHECKPHONE_APP_SPECS, type CheckPhoneAppId, type CheckPhoneManifest, type CheckPhoneSnapshot } from "./checkphone-config";
@@ -263,7 +264,7 @@ export function loadCheckPhoneProjectionEntries(
   characterId: string,
   options?: { afterTimestamp?: string },
 ): CheckPhoneProjectionEntry[] {
-  const entries = [...loadProjectionEventsByKey(projectionStorageKey(characterId)), ...visitMemory(characterId), ...phonePlayMemory(characterId),...reverseMemory(characterId),...reconciliationMemory(characterId)];
+  const entries = [...loadProjectionEventsByKey(projectionStorageKey(characterId)), ...visitMemory(characterId), ...phonePlayMemory(characterId),...reverseMemory(characterId),...secretInspectionProjectionEntries(characterId),...reconciliationMemory(characterId)];
   if (!options?.afterTimestamp) return entries;
   return entries.filter(entry => entry.timestamp > options.afterTimestamp!);
 }

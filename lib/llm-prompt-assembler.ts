@@ -46,6 +46,7 @@ export type LLMMessage = {
         depth?: number;
         order?: number;
         _fromHistory?: boolean;
+        memoryContext?: { enabled: boolean; events: { id?: string; source: string; keys?: string[]; knownBy?: string[] }[]; historyIds: string[] };
     };
 };
 
@@ -1160,6 +1161,10 @@ export function assemblePromptPayload(input: AssemblerInput): LLMMessage[] {
     if (relationBoundary) finalPayload.push({ role: "system", content: relationBoundary, _debugMeta: { marker: "fixed_relationship" } });
     const observation = appId === "chat" ? relationshipSuggestionInstruction([character.id], userIdentity?.id, history.map(m => m.role === "assistant" ? { ...m, senderCharacterId: m.senderCharacterId || character.id } : m)) : "";
     if (observation) finalPayload.push({ role: "system", content: observation, _debugMeta: { marker: "relationship_review" } });
+    if (finalPayload.length) finalPayload[0]._debugMeta = { ...finalPayload[0]._debugMeta,
+        memoryContext: { enabled: historyInjectionEnabled,
+            events: historyInjectionEnabled ? (input.unifiedRecentItems || []).flatMap(item => item.kind === "event" ? [{id: item.entryId, source: item.sourceApp, keys: item.sourceKeys, knownBy: item.knownByCharacterIds}] : []) : [],
+            historyIds: historyInjectionEnabled ? history.map(m => m.id) : [] } };
     return finalPayload;
 }
 
@@ -2338,6 +2343,10 @@ export function assembleGroupPromptPayload(input: GroupAssemblerInput): LLMMessa
     if (relationBoundaries) finalPayload.push({ role: "system", content: relationBoundaries, _debugMeta: { marker: "fixed_relationship" } });
     const observation = relationshipSuggestionInstruction(members.map(m => m.character.id), userIdentity?.id, history);
     if (observation) finalPayload.push({ role: "system", content: observation, _debugMeta: { marker: "relationship_review" } });
+    if (finalPayload.length) finalPayload[0]._debugMeta = { ...finalPayload[0]._debugMeta,
+        memoryContext: { enabled: historyInjectionEnabled,
+            events: historyInjectionEnabled ? (input.unifiedRecentItems || []).flatMap(item => item.kind === "event" ? [{id: item.entryId, source: item.sourceApp, keys: item.sourceKeys, knownBy: item.knownByCharacterIds}] : []) : [],
+            historyIds: historyInjectionEnabled ? history.map(m => m.id) : [] } };
     return finalPayload;
 }
 
