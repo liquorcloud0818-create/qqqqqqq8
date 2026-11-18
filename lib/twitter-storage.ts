@@ -1,3 +1,4 @@
+import { queueNativeMemoryUpdate } from "./native-memory-update";
 import {revokeMemorySources} from "./memory-event-meta";
 import type { SocialMedia } from './social-media';
 import { loadCharacters } from "./character-storage";
@@ -205,7 +206,11 @@ export function loadTwitterState(): TwitterState {
 
 export function saveTwitterState(state: TwitterState): void {
   if (typeof window === "undefined") return;
-  const previous=loadTwitterState(); const oldIds = new Set(previous.posts.map(p=>p.id));
+  const previous=loadTwitterState();
+  const removed = previous.posts.filter(p => !state.posts.some(n => n.id === p.id)).map(p => `twitter:post:${p.id}`);
+  for (const c of previous.conversations) for (const m of c.messages) if (!state.conversations.some(n => n.id === c.id && n.messages.some(row => row.id === m.id))) removed.push(`twitter:dm:${c.id}:${m.id}`);
+  if (removed.length) revokeMemorySources(removed);
+  const oldIds = new Set(previous.posts.map(p=>p.id));
   state = {...state,posts:state.posts.map(p=>{ if(p.identitySnapshot)return p;if(oldIds.has(p.id))return {...p,identitySnapshot:previous.posts.find(t=>t.id===p.id)?.identitySnapshot}; const parent=state.posts.find(t=>t.id===p.replyToId);if(!parent)return p;return {...p,identitySnapshot:{[p.authorId]:twitterRecognizes(state,parent.authorId,p.authorId),[parent.authorId]:twitterRecognizes(state,p.authorId,parent.authorId)}};})};
   state={...state,conversations:state.conversations.map(c=>({...c,messages:c.messages.map(m=>{
    if(m.identitySnapshot)return m;const old=previous.conversations.find(t=>t.id===c.id)?.messages.find(t=>t.id===m.id);
@@ -213,6 +218,12 @@ export function saveTwitterState(state: TwitterState): void {
    return {...m,identitySnapshot:{[a]:twitterRecognizes(state,b,a),[b]:twitterRecognizes(state,a,b)}};
   })}))};
   kvSet(TWITTER_STORAGE_KEY, JSON.stringify(state));
+  const newOwners = state.posts.filter(p => !oldIds.has(p.id)).map(p => twitterOwner(p.authorId));
+  for (const c of state.conversations) {
+    const oldMessages = new Set(previous.conversations.find(p => p.id === c.id)?.messages.map(m => m.id) || []);
+    if (c.messages.some(m => !oldMessages.has(m.id))) newOwners.push(c.characterId);
+  }
+  queueNativeMemoryUpdate(newOwners, "twitter");
   window.dispatchEvent(new Event(TWITTER_UPDATED_EVENT));
 }
 
@@ -260,7 +271,7 @@ export function loadTwitterProjectionEntries(characterId: string, afterTimestamp
  const sent=own.has(p.authorId),received=own.has(target.authorId);if(!sent&&!received)continue;
  const viewer=sent?p.authorId:target.authorId,other=sent?target.authorId:p.authorId;const reset=Math.max(state.accounts[viewer]?.identityResetAt?.[twitterOwner(other)]||0,state.accounts[other]?.identityResetAt?.[twitterOwner(viewer)]||0);if(p.createdAt<=reset)continue;
  const answered=state.posts.some(t=>t.replyToId===p.id&&own.has(t.authorId));
- const snapshot={...p.identitySnapshot,[viewer]:twitterRecognizes(state,other,viewer),[other]:twitterRecognizes(state,viewer,other)}; const mutual=viewer.replace(/:alt$/,"")!==other.replace(/:alt$/,"")&&snapshot[viewer]===true&&snapshot[other]===true;
+ const snapshot=p.identitySnapshot || {[viewer]:!other.endsWith(":alt"),[other]:!viewer.endsWith(":alt")}; const mutual=viewer.replace(/:alt$/,"")!==other.replace(/:alt$/,"")&&snapshot[viewer]===true&&snapshot[other]===true;
  const interaction=sent||answered||mutual;
  if(!interaction){if((samples[target.id]||0)>=2)continue;samples[target.id]=(samples[target.id]||0)+1;}
  entries.push({sourceKeys:[`twitter:post:${p.id}`],id:`twitter_${p.id}`,timestamp:new Date(p.createdAt).toISOString(),shared:interaction&&mutual,content:`${interaction?"X 实际回复互动":"X 留意到的评论（未互动）"}：${label(target.authorId,sent?snapshot[viewer]===true:true)}发帖“${target.original.slice(0,300)}”；${label(p.authorId,received?snapshot[viewer]===true:true)}回复“${p.original.slice(0,300)}”。仅供参与者记忆，不能据此公开隐藏身份。`});
@@ -273,7 +284,7 @@ export function loadTwitterProjectionEntries(characterId: string, afterTimestamp
  }
  for(const m of c.messages.filter(m=>m.role==="character")) {
  const index=c.messages.indexOf(m),prior=c.messages.slice(0,index).filter(t=>t.role==="user").at(-1);if(!prior)continue;
- const reset=Math.max(state.accounts[a]?.identityResetAt?.[twitterOwner(b)]||0,state.accounts[b]?.identityResetAt?.[twitterOwner(a)]||0);if(m.createdAt<=reset)continue;const snap={...m.identitySnapshot,[a]:twitterRecognizes(state,b,a),[b]:twitterRecognizes(state,a,b)};entries.push({sourceKeys:[`twitter:dm:${c.id}:${m.id}`],id:`twitter_dm_${m.id}`,timestamp:new Date(m.createdAt).toISOString(),shared:snap[a]===true&&snap[b]===true,content:`X 私信互动：${label(a,snap[b]===true)}说“${(prior.postSnapshot?twitterSnapshotText(prior.postSnapshot):prior.original).slice(0,2200)}”，角色回复“${m.original.slice(0,260)}”。`});
+ const reset=Math.max(state.accounts[a]?.identityResetAt?.[twitterOwner(b)]||0,state.accounts[b]?.identityResetAt?.[twitterOwner(a)]||0);if(m.createdAt<=reset)continue;const snap=m.identitySnapshot || {[a]:!b.endsWith(":alt"),[b]:!a.endsWith(":alt")};entries.push({sourceKeys:[`twitter:dm:${c.id}:${m.id}`],id:`twitter_dm_${m.id}`,timestamp:new Date(m.createdAt).toISOString(),shared:snap[a]===true&&snap[b]===true,content:`X 私信互动：${label(a,snap[b]===true)}说“${(prior.postSnapshot?twitterSnapshotText(prior.postSnapshot):prior.original).slice(0,2200)}”，角色回复“${m.original.slice(0,260)}”。`});
  }}
  return entries.filter(e=>!afterTimestamp||e.timestamp>afterTimestamp).sort((a,b)=>a.timestamp.localeCompare(b.timestamp)).slice(-80);
 }

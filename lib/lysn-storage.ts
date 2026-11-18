@@ -1,3 +1,4 @@
+import { queueNativeMemoryUpdate } from "./native-memory-update";
 import { DEFAULT_LYSN_SOUND } from "./default-notification-sounds";
 import type { PhotoStorySnapshot } from "./photo-story-data";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
@@ -83,7 +84,11 @@ export function loadLysn(): LysnState {
   } catch { return empty(); }
 }
 export function saveLysn(state: LysnState): void {
+  const previousIds = new Set(loadLysn().messages.map(m => m.id));
   kvSet(LYSN_KEY, JSON.stringify(state));
+  for (const id of new Set(state.messages.filter(m => !previousIds.has(m.id) && m.sender === "artist" && !m.opener && m.kind !== "notice").map(m => m.characterId))) {
+    queueNativeMemoryUpdate([id], "lysn", state.messages.filter(m => m.characterId === id && !previousIds.has(m.id) && m.sender === "artist" && !m.opener && m.kind !== "notice").length);
+  }
   if (typeof window !== "undefined") window.dispatchEvent(new Event(LYSN_EVENT));
 }
 export function lysnId(): string { return `lysn_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`; }

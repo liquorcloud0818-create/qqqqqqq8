@@ -14,6 +14,7 @@ export type CheckPhoneBilingualTone =
   | "ios"
   | "chat"
   | "messages"
+  | "browser"
   | "photos"
   | "notes"
   | "shopping"

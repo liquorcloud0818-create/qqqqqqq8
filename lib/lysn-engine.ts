@@ -1,3 +1,4 @@
+import { prepareCharacterMemory } from "./character-memory-context";
 import {lysnCalendarContext} from "./lysn-calendar-context";
 import { photoStoryReplyContext } from "./photo-story-data";
 import { allowMediaIntent, recordMediaDecision } from "./media-preferences";
@@ -49,10 +50,14 @@ export async function generateLysn(characterId: string, history: LysnMessage[], 
   const imported = album.preferences.enabledCharacterIds.includes(characterId);
   const photoStrategy = imported ? getPhotoSourceStrategy("bubble") : "generated_only";
   const photoChoices = album.photos.filter(p => (imported || p.origin === "generated") && p.linkedCharacterIds.includes(characterId) && p.aiUsable && hasPhotoMatchDescription(p) && canAutoUsePhoto(p, characterId, "bubble")).slice(-20);
-  // There is no private Chat history or Chat user identity in this prompt.
+  // Cognition is private; the channel audience remains anonymous.
+  const normalBroadcast = mode === "new" || mode === "reply";
+  const cognition = normalBroadcast ? await prepareCharacterMemory(characterId, "lysn", fanMessage || "本人近期生活与公开分享", {
+    excludeEntryIds: history.slice(-18).map(m => `lysn_post_${m.id}`),
+  }) : {};
   const calendar=lysnCalendarContext(characterId);
   if((mode==="new"||mode==="reply")&&(!loadLysn().subscribedIds.includes(characterId)||!calendar.canSend))return [];
-  const prompt = assemblePromptPayload({ character, history: [], preset, worldBooks, regexes,
+  const prompt = assemblePromptPayload({ ...cognition, character, history: [], preset, worldBooks, regexes,
     appId: "lysn", appTags: ["lysn", "bubble"], scheduleSummary: (mode==="new"||mode==="reply")?calendar.summary:undefined, timeContext: buildCharacterTimeContext(character.timeZone) });
   const timeline = history.slice(-18).map(m => `${m.sender === "fan" ? "匿名粉丝" : m.sender === "artist" ? m.opener ? "频道开场白" : "艺人" : "系统"}: ${m.original}`).join("\n");
   const photoRequest = mode === "reply" && /(?:照片|自拍|图片|发图|张图|几张|多张|photo|picture|pics|사진|셀카)/i.test(fanMessage || "");
@@ -66,7 +71,7 @@ export async function generateLysn(characterId: string, history: LysnMessage[], 
   const instruction: LLMMessage = { role: "system", content: [
     mode === "birthday" ? "你正在写一张仅当前订阅者能看到的 Bubble 生日卡片；这不是公开频道消息，也不进入聊天记录。按你的本来语言写祝福并附中文译文，不要声称知道订阅者真实身份或私下关系。" : "你正在 Lysn Bubble 面向全部订阅者的艺人频道发消息。回复是匿名粉丝反馈，不是与某个人的私聊。绝不识别发送者真实身份、推断私下关系或泄露秘密。",
     lysnPublicBoundary(characterId),
-    mode === "new" || mode === "reply" ? lysnPublicContinuityPrompt(characterId) : "",
+    "短期、长期和核心是你私下的认知，不是粉丝留言，也不是必须发布的素材。你可以记得自己的运动、吃饭、见闻，然后自行选择可公开的部分；不得公开用户秘密、未公开关系、保密工作、私人身份和行踪。不能把频道匿名粉丝认作私聊对象。可以不谈最新事件，也可以不发。",
     `泡泡风格（仅本平台表达习惯）：${loadLysn().rooms[characterId]?.bubbleStyle||"按人设自然发挥"}`,
     "粉丝全是匿名的，不能识别当前user或照搬Chat关系；一对一男友感称呼不表示知道收件人身份。昵称用频道既有占位规则。可以自说自话、忽略来信、直接接匿名粉丝的话；例如：紧张？/替我紧张吗/我还没紧张，你怎么先紧张了。避免有人说、某位粉丝说这类播报。模拟粉丝措辞不等于user发言，不能成为user聊天或记忆。不要每轮回复当前来信。",
     "优先参考最新世界线进展、本人日历和近期WVS公开内容。已发新歌可连续几天换角度宣传；已公开节目可预告、打气、聊已公开幕后；未公开工作最多笼统卖关子，不泄露标题地点保密细节。不强迫每条谈工作，也可依人设突发聊吃饭运动上课休息。",

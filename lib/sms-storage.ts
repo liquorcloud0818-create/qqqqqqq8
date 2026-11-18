@@ -1,3 +1,4 @@
+import { queueNativeMemoryUpdate } from "./native-memory-update";
 import { DEFAULT_SMS_SOUND } from "./default-notification-sounds";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 
@@ -11,7 +12,7 @@ export type SmsReaction = { id: string; emoji: string; by: "user" | "character" 
 export type SmsMessage = { id: string; threadId: string; direction: "outgoing" | "incoming"; original: string; translated?: string; createdAt: number; delivered: boolean; batchId?: string; awarenessAt?: SmsThread["awareness"]; reactions?: SmsReaction[] };
 export type SmsThread = { id: string; characterId: string; identityId: string; number: string; characterNumber: string; alias?: string; backgroundUrl?: string; blockedByMe: boolean; blockedByCharacter: boolean; awareness: "unknown" | "suspected" | "confirmed"; suspicion?: string; summary?: string; updatedAt: number; readAt: number };
 export const DEFAULT_SMS_EMOJI = ["❤️", "👍", "😂", "😮", "😢", "👀", "🔥", "🫶", "🐰", "🥺", "😍", "✨", "💀", "👏", "😡", "💕"];
-export type SmsState = { version: 1; contactAliases?: Record<string, string>; realNumber: string; characterNumbers: Record<string,string>; identities: SmsIdentity[]; threads: SmsThread[]; messages: SmsMessage[]; background: string; proactive: "off" | "on" | "rare" | "normal" | "often"; autoExpandTranslation: boolean; ringtoneUrl?: string; soundEnabled?: boolean; emojiChoices: string[]; lastAutoAt: Record<string,number>; contactAttempts: Record<string,number> };
+export type SmsState = { version: 1; observations?: { id: string; threadId: string; createdAt: number; text: string }[]; contactAliases?: Record<string, string>; realNumber: string; characterNumbers: Record<string,string>; identities: SmsIdentity[]; threads: SmsThread[]; messages: SmsMessage[]; background: string; proactive: "off" | "on" | "rare" | "normal" | "often"; autoExpandTranslation: boolean; ringtoneUrl?: string; soundEnabled?: boolean; emojiChoices: string[]; lastAutoAt: Record<string,number>; contactAttempts: Record<string,number> };
 const empty = (): SmsState => ({ version: 1, realNumber: "", characterNumbers: {}, identities: [], threads: [], messages: [], background: "", proactive: "off", autoExpandTranslation: false, soundEnabled: true, ringtoneUrl: DEFAULT_SMS_SOUND, emojiChoices: [...DEFAULT_SMS_EMOJI], lastAutoAt: {}, contactAttempts: {} });
 export function loadSms(): SmsState {
   try {
@@ -22,8 +23,34 @@ export function loadSms(): SmsState {
   } catch { return empty(); }
 }
 export function saveSms(state: SmsState): void {
-  const previousIds = new Set(loadSms().messages.map(message => message.id));
+  const previous = loadSms();
+  const previousIds = new Set(previous.messages.map(message => message.id));
+  const oldMessages = new Map(previous.messages.map(m => [m.id, m]));
+  // Editing/deleting native messages invalidates the cached relationship summary.
+  // Do not erase later independent conversations in other apps.
+  for (const old of previous.messages) {
+    const current = state.messages.find(m => m.id === old.id);
+    if (!current || current.original !== old.original) {
+      const thread = state.threads.find(t => t.id === old.threadId);
+      if (thread) thread.summary = undefined;
+    }
+  }
+  const observations = [...(state.observations || [])];
+  const observe = (threadId: string, text: string) => observations.push({id: smsId(), threadId, createdAt: Date.now(), text});
+  for (const thread of state.threads) {
+    const old = previous.threads.find(t => t.id === thread.id);
+    const number = `短信号码 ${thread.number}`;
+    if (old && old.blockedByCharacter !== thread.blockedByCharacter) observe(thread.id, `你${thread.blockedByCharacter ? "屏蔽了" : "解除了屏蔽"}${number}。`);
+    if (old && old.awareness !== thread.awareness) observe(thread.id, `${number}：你当时${thread.awareness === "confirmed" ? "根据来信确认是用户" : thread.awareness === "suspected" ? "怀疑是用户，尚未确认" : "无法确认身份"}。${thread.suspicion || ""}`);
+    for (const m of state.messages.filter(m => m.threadId === thread.id && !oldMessages.has(m.id) && m.direction === "incoming" && !m.delivered)) observe(thread.id, `你向${number}发送的短信未送达；不要推断具体原因。`);
+  }
+  state.observations = observations.filter(o => state.threads.some(t => t.id === o.threadId));
   kvSet(SMS_KEY, JSON.stringify(state));
+  for (const thread of state.threads) {
+    const count = state.messages.filter(m => m.threadId === thread.id && m.delivered && !previousIds.has(m.id)).length
+      + observations.filter(o => o.threadId === thread.id && !(previous.observations || []).some(p => p.id === o.id)).length;
+    queueNativeMemoryUpdate([thread.characterId], "sms", count);
+  }
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(SMS_EVENT));
     for (const message of state.messages) {
@@ -95,13 +122,14 @@ export function loadSmsProjectionEntries(characterId: string, options: { afterTi
   const state = loadSms();
   const threads = new Map(state.threads.filter(thread => thread.characterId === characterId && thread.id !== options.excludeThreadId).map(thread => [thread.id, thread]));
   const after = options.afterTimestamp ? Date.parse(options.afterTimestamp) : 0;
-  return state.messages.flatMap(message => {
+  const messages = state.messages.flatMap(message => {
     const thread = threads.get(message.threadId);
     if (!thread || !message.delivered || (Number.isFinite(after) && message.createdAt <= after)) return [];
     const name = message.direction === "incoming" ? (options.charName || "对方")
-      : message.awarenessAt === "confirmed" || thread.identityId === "real" ? (options.userName || "用户") : "未确认身份的号码";
-    return [{ id: message.id, timestamp: new Date(message.createdAt).toISOString(), content: `[短信] ${name}：${message.original}` }];
+      : message.awarenessAt === "confirmed" || thread.identityId === "real" ? (options.userName || "用户") : `未确认身份的号码 ${thread.number}`;
+    return [{ id: message.id, timestamp: new Date(message.createdAt).toISOString(), content: `[短信 · 号码 ${thread.number}] ${name}：${message.original}` }];
   });
+  return [...messages, ...(state.observations || []).filter(o => threads.has(o.threadId) && (!after || o.createdAt > after)).map(o => ({id: o.id, timestamp: new Date(o.createdAt).toISOString(), content: `[短信状态] ${o.text}`}))].sort((a,b) => a.timestamp.localeCompare(b.timestamp));
 }
 
 /** Shared Phone/SMS remark. Legacy thread remarks remain a read-only fallback. */

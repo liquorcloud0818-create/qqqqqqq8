@@ -4,6 +4,7 @@ const config={autoSummarizeEnabled:true,summarizationEventInterval:4,longTermTok
 const kv={registerKvMigration(){},registerDynamicPrefix(){},kvKeysWithPrefix:p=>[...cache.keys()].filter(k=>k.startsWith(p)),kvGet:k=>cache.get(k)||null,kvSet:(k,v)=>cache.set(k,v),kvRemove:k=>cache.delete(k)};
 const mocks={
  'kv-db':kv,
+ 'character-storage':{loadCharacters:()=>[{id:'a',name:'A'},{id:'b',name:'B'}]},
  'llm-prompt-assembler':{formatChatTimestamp:t=>t},
  'memory-storage':{loadMemoryConfig:()=>config,loadMemoryEntries:async()=>memories,loadMemoryEntriesByType:async(id,type)=>memories.filter(m=>m.type===type),saveMemoryEntry:async e=>saved.push(e),deleteMemoryEntries:async()=>{},getEventCounter:()=>4,resetEventCounter:()=>counter++,getLastSummarizedTimestamp:()=>watermark,setLastSummarizedTimestamp:(id,v)=>watermark=v,incrementCoreMemoryCounter(){}},
  'settings-storage':{resolveAuxiliaryApiConfig:key=>key==='memorySummaryApiConfigId'?{id:'summary'}:{provider:'test',defaultModel:'embed-test'},resolveUserIdentity:()=>({id:'u'})},
@@ -36,8 +37,7 @@ const m=(id,content,metadata={})=>({id,characterId:'a',type:'long_term',content,
  // One oversized candidate cannot prevent smaller relevant candidates from being read.
  memories=[m('large','八月拍摄'.repeat(100)),m('small','拍摄')];vector=null;config.longTermTokenBudget=20;got=await service.retrieveMemoriesForPrompt('a','八月拍摄',config);assert.deepEqual(got.map(e=>e.id),['small']);
  // WVS delete removes source projections and revokes derived paragraphs, never money or unrelated memories.
- const live={id:'live_1',communityId:'c',participantPresence:[{characterId:'a'},{characterId:'b'}]};kv.kvSet('ai_phone_weverse_state_v1',JSON.stringify({lives:[live],communities:[],posts:[],notices:[],schedules:[]}));
- wvsmem.recordWeverseLiveParticipationEvent({liveId:live.id,characterId:'a',characterName:'A',communityName:'C',startedAt:1,role:'host'});
+ const live={id:'live_1',communityId:'c',status:'ended',startedAt:1000,endedAt:9000,hostCharacterIds:['a','b'],participantPresence:[{characterId:'a',joinedAt:1000},{characterId:'b',joinedAt:1000}],segments:[],comments:[]};kv.kvSet('ai_phone_weverse_state_v1',JSON.stringify({lives:[live],communities:[],posts:[],notices:[],schedules:[]}));
  assert.equal(wvsmem.loadWeverseProjectionEntries('a')[0].shared,true);wvs.deleteWeverseLive(live.id);assert.equal(wvsmem.loadWeverseProjectionEntries('a').length,0);assert(meta.revokedMemoryKeys().has('wvs:live_1'));
  interview.recordInterviewMagazineProjectionEvent({issueId:'ep',issueNumber:1,title:'标题',theme:'主题',characterIds:['a','b'],characterNames:['A','B'],userName:'用户',summary:'共同节目'});assert(interview.loadInterviewMagazineProjectionEntries('a')[0].shared);interview.deleteInterviewMagazineProjectionEventForIssue('ep');assert.equal(interview.loadInterviewMagazineProjectionEntries('a').length,0);assert(meta.revokedMemoryKeys().has('interview:ep'));
  console.log('PASS: 日期校验/注入、共享互斥、选旧记录提炼预览不改水位线、跨月分段、来源精确撤回、缺向量回退、超长条目跳过、WVS/在场删除联动');

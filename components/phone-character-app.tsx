@@ -1,4 +1,5 @@
 "use client";
+import { getChatCharacterProfile, updateChatCharacterProfile } from "@/lib/chat-profile-storage";
 import { loadBindingConfig, loadUserIdentities, resolveUserIdentity, USER_IDENTITIES_UPDATED_EVENT } from "@/lib/settings-storage";
 import { userKnowledgeLevel } from "@/lib/user-knowledge";
 import { RELATION_STYLES, userRelationNode, userIdentityFromNode, type RelationKind } from "@/lib/relation-policy";
@@ -1949,6 +1950,7 @@ function CharArchiveView({
   const identityForKnowledge = resolveUserIdentity(char.id, "chat");
   const [preferences, setPreferences] = useState<CharacterPreferences>(initialPreferences);
   const [persona, setPersona] = useState(char.persona || "");
+  const [chatDisplayName, setChatDisplayName] = useState(getChatCharacterProfile(char.id)?.displayName || "");
   const [phoneNumber, setPhoneNumber] = useState(getCharacterPhoneNumber(char.id) || char.wechatID || "");
   const [personality, setPersonality] = useState(char.personality || "");
   const [briefPersona, setBriefPersona] = useState(char.briefPersona || "");
@@ -2076,6 +2078,7 @@ function CharArchiveView({
       setName(char.name || "");
       setPreferences(initialPreferences());
       setPersona(char.persona || "");
+      setChatDisplayName(getChatCharacterProfile(char.id)?.displayName || "");
       setPhoneNumber(getCharacterPhoneNumber(char.id) || char.wechatID || "");
       setPersonality(char.personality || "");
       setBriefPersona(char.briefPersona || "");
@@ -2139,6 +2142,7 @@ function CharArchiveView({
     const trimmedTimeZone = timeZone.trim();
     const normalizedTimeZone = trimmedTimeZone ? normalizeTimeZone(trimmedTimeZone) : undefined;
     if (onSave) {
+      updateChatCharacterProfile(char.id, { displayName: chatDisplayName.trim() });
       const trimmedBrief = briefPersona.trim();
       onSave({
         name: name.trim() || char.name || "UNNAMED",
@@ -2406,6 +2410,12 @@ function CharArchiveView({
               <div className="char-archive-cell" style={{ flex: 1.1 }}>
                 <span className="char-archive-label">Update</span>
                 <span className="char-archive-val">{char.updatedAt ? char.updatedAt.slice(0, 10).replace(/-/g, "/") : "N/A"}</span>
+              </div>
+            </div>
+            <div className="char-archive-row">
+              <div className="char-archive-cell">
+                <span className="char-archive-label">Chat 网名</span>
+                {isEditing ? <input className="char-archive-input min-w-0 w-full" value={chatDisplayName} maxLength={80} placeholder={char.name || "留空使用角色名"} onChange={e => setChatDisplayName(e.target.value)}/> : <span className="char-archive-val select-text">{getChatCharacterProfile(char.id)?.displayName || char.name}</span>}
               </div>
             </div>
 

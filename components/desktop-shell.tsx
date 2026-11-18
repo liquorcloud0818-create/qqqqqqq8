@@ -170,6 +170,7 @@ import { PHONE_EVENT, appendPhoneCall, getCharacterPhoneNumber, getUnseenMissedC
 import { installChatSoundListener, playChatSoundOnce, setMiniChatSoundSessionId, startChatSoundLoop } from "@/lib/chat-sound";
 import { setMascotContext } from "@/lib/mascot-context";
 import { DESKTOP_WIDGETS_CHANGED_EVENT } from "@/lib/mascot-events";
+import { BrowserApp } from "@/components/browser/browser-app";
 import { sendBrowserNotification } from "@/lib/browser-notification";
 import type { ChatSharePayload } from "@/lib/chat-share";
 import { completePendingMcpOAuthCallback } from "@/lib/tool-executor";
@@ -4314,6 +4315,8 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
     if (activeApp === "story") {
       return <StoryApp onClose={() => setActiveApp(null)} />;
     }
+
+    if (activeApp === "browser") return <BrowserApp onClose={() => setActiveApp(null)} />;
 
     if (activeApp === "reading") {
       return <ReadingApp onClose={() => setActiveApp(null)} />;

@@ -2,6 +2,7 @@ import type { WalletCurrency } from "./wallet-types";
 export type CheckPhoneAppId =
   | "phone"
   | "messages"
+  | "browser"
   | "photos"
   | "chat"
   | "shopping"
@@ -85,6 +86,32 @@ export type CheckPhoneMessagesPayload = {
   headerSubtitle: string;
   featuredThreadId?: string;
   threads: CheckPhoneMessageThread[];
+};
+
+export type CheckPhoneBrowserHistoryItem = {
+  id: string;
+  title: string;
+  urlLabel: string;
+  createdAt: string;
+  content: string;
+  context: string;
+  innerThought: string;
+};
+
+export type CheckPhoneBrowserBookmark = {
+  id: string;
+  title: string;
+  urlLabel: string;
+  categoryLabel: string;
+  content: string;
+  reason: string;
+};
+
+export type CheckPhoneBrowserPayload = {
+  headerTitle: string;
+  headerSubtitle: string;
+  history: CheckPhoneBrowserHistoryItem[];
+  bookmarks: CheckPhoneBrowserBookmark[];
 };
 
 export type CheckPhonePhotoTone = "silver" | "graphite" | "mist" | "shadow";
@@ -1054,6 +1081,7 @@ export type CheckPhonePromptSecondaryTag =
   | "manifest"
   | "phone"
   | "messages"
+  | "browser"
   | "photos"
   | "messenger"
   | "shopping"
@@ -1083,6 +1111,7 @@ export type CheckPhoneTagProfile = {
 export const CHECKPHONE_DOCK_APP_IDS: CheckPhoneAppId[] = [
   "phone",
   "messages",
+  "browser",
   "photos",
 ];
 
@@ -1116,6 +1145,7 @@ export const CHECKPHONE_OPTIONAL_SELECTION_COUNT = 8;
 export const CHECKPHONE_APP_SPECS: Record<CheckPhoneAppId, CheckPhoneAppSpec> = {
   phone: { id: "phone", label: "电话", englishLabel: "Phone" },
   messages: { id: "messages", label: "信息", englishLabel: "Messages" },
+  browser: { id: "browser", label: "浏览器", englishLabel: "Browser" },
   photos: { id: "photos", label: "相册", englishLabel: "Photos" },
   chat: { id: "chat", label: "聊天", englishLabel: "Chat" },
   shopping: { id: "shopping", label: "购物", englishLabel: "Shopping" },
@@ -1146,6 +1176,7 @@ const CHECKPHONE_PROMPT_APP_ORDER: CheckPhoneAppId[] = [
 const CHECKPHONE_APP_PROMPT_TAGS: Record<CheckPhoneAppId, Exclude<CheckPhonePromptSecondaryTag, "manifest">> = {
   phone: "phone",
   messages: "messages",
+  browser: "browser",
   photos: "photos",
   chat: "messenger",
   shopping: "shopping",
@@ -1171,6 +1202,7 @@ export const CHECKPHONE_PROMPT_SECONDARY_TAG_LABELS: Record<CheckPhonePromptSeco
   manifest: "清单",
   phone: CHECKPHONE_APP_SPECS.phone.label,
   messages: CHECKPHONE_APP_SPECS.messages.label,
+  browser: CHECKPHONE_APP_SPECS.browser.label,
   photos: CHECKPHONE_APP_SPECS.photos.label,
   messenger: CHECKPHONE_APP_SPECS.chat.label,
   shopping: CHECKPHONE_APP_SPECS.shopping.label,

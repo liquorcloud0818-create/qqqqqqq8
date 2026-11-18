@@ -31,6 +31,7 @@ import {
   CHECKPHONE_DOCK_APP_IDS,
   CHECKPHONE_FIXED_APP_IDS,
   getCheckPhonePromptTags,
+  type CheckPhoneBrowserPayload,
   type CheckPhoneMessagesPayload,
   type CheckPhoneMessageThread,
   type CheckPhoneMusicPayload,
@@ -4279,6 +4280,174 @@ export async function generateCheckPhoneMessages(
 
 
 
+
+function normalizeBrowserPayload(payload: unknown): CheckPhoneBrowserPayload | null {
+  if (!payload || typeof payload !== "object") return null;
+  const record = payload as Record<string, unknown>;
+  const historyRaw = Array.isArray(record.history) ? record.history : [];
+  const bookmarksRaw = Array.isArray(record.bookmarks) ? record.bookmarks : [];
+
+  const history = historyRaw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const entry = item as Record<string, unknown>;
+      const id = typeof entry.id === "string" && entry.id.trim() ? entry.id.trim() : "";
+      const title = typeof entry.title === "string" ? entry.title.trim() : "";
+      const urlLabel = typeof entry.urlLabel === "string" ? entry.urlLabel.trim() : "";
+      const createdAt = typeof entry.createdAt === "string" ? entry.createdAt.trim() : "";
+      const content = typeof entry.content === "string" ? entry.content.trim() : "";
+      const context = typeof entry.context === "string" ? entry.context.trim() : "";
+      const innerThought = typeof entry.innerThought === "string" ? entry.innerThought.trim() : "";
+      if (!id || !title || !urlLabel || !createdAt || !content) return null;
+      return { id, title, urlLabel, createdAt, content, context, innerThought };
+    })
+    .filter(Boolean) as CheckPhoneBrowserPayload["history"];
+
+  const bookmarks = bookmarksRaw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const entry = item as Record<string, unknown>;
+      const id = typeof entry.id === "string" && entry.id.trim() ? entry.id.trim() : "";
+      const title = typeof entry.title === "string" ? entry.title.trim() : "";
+      const urlLabel = typeof entry.urlLabel === "string" ? entry.urlLabel.trim() : "";
+      const categoryLabel = typeof entry.categoryLabel === "string" ? entry.categoryLabel.trim() : "";
+      const content = typeof entry.content === "string" ? entry.content.trim() : "";
+      const reason = typeof entry.reason === "string" ? entry.reason.trim() : "";
+      if (!id || !title || !urlLabel || !categoryLabel) return null;
+      return { id, title, urlLabel, categoryLabel, content, reason };
+    })
+    .filter(Boolean) as CheckPhoneBrowserPayload["bookmarks"];
+
+  if (history.length === 0 && bookmarks.length === 0) return null;
+
+  return {
+    headerTitle: typeof record.headerTitle === "string" && record.headerTitle.trim() ? record.headerTitle.trim() : "浏览器",
+    headerSubtitle:
+      typeof record.headerSubtitle === "string" && record.headerSubtitle.trim() ? record.headerSubtitle.trim() : "历史记录与收藏夹",
+    history: history.slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    bookmarks,
+  };
+}
+
+function extractBrowserSection(source: string, heading: string): string {
+  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = source.match(new RegExp(`^#\\s*${escaped}\\s*$`, "m"));
+  if (!match || match.index === undefined) return "";
+  const start = match.index + match[0].length;
+  const next = source.slice(start).match(/^#(?!#)\s*\S.*$/m);
+  const end = next?.index === undefined ? source.length : start + next.index;
+  return source.slice(start, end).trim();
+}
+
+function parseBrowserEntryBlocks(section: string, label: string): Array<{ order: string; fields: Record<string, string> }> {
+  const matches = [...section.matchAll(new RegExp(`^##\\s*${label}(\\d+)\\s*$`, "gm"))];
+  return matches.map((current, index) => {
+    const next = matches[index + 1];
+    const start = (current.index ?? 0) + current[0].length;
+    const end = next?.index ?? section.length;
+    return {
+      order: current[1] || String(index + 1),
+      fields: parseTakeoutTaggedFields(section.slice(start, end).trim()),
+    };
+  });
+}
+
+function parseBrowserBlockPayload(text: string): PhoneBlockParseResult {
+  const source = stripJsonWrapperNoise(text).replace(/\r/g, "").trim();
+  if (!source) return { parsed: null, sanitizedCandidate: "", parseMode: "failed", parseError: "LLM 返回为空" };
+  const historySection = extractBrowserSection(source, "历史记录");
+  const bookmarksSection = extractBrowserSection(source, "收藏夹");
+  if (!historySection && !bookmarksSection) {
+    return { parsed: null, sanitizedCandidate: source, parseMode: "failed", parseError: "未找到 #历史记录 或 #收藏夹 分区" };
+  }
+  const history = parseBrowserEntryBlocks(historySection, "记录")
+    .map(({ order, fields }) => ({
+      id: `history${order}`,
+      title: fields["标题"] || "",
+      urlLabel: fields["网址"] || "",
+      createdAt: fields["时间"] || new Date().toISOString(),
+      content: fields["内容"] || "",
+      context: fields["情境"] || "",
+      innerThought: fields["内心"] || "",
+    }))
+    .filter((item) => item.title && item.urlLabel);
+  const bookmarks = parseBrowserEntryBlocks(bookmarksSection, "收藏")
+    .map(({ order, fields }) => ({
+      id: `bookmark${order}`,
+      title: fields["标题"] || "",
+      urlLabel: fields["网址"] || "",
+      categoryLabel: fields["分类"] || "收藏",
+      content: fields["内容"] || "",
+      reason: fields["收藏原因"] || "",
+    }))
+    .filter((item) => item.title && item.urlLabel);
+  const parsed = {
+    headerTitle: "浏览器",
+    headerSubtitle: "历史记录与收藏夹",
+    history,
+    bookmarks,
+  };
+  return { parsed, sanitizedCandidate: source, parseMode: "sanitized" };
+}
+
+export async function generateCheckPhoneBrowser(
+  characterId: string,
+  previousPayload?: CheckPhoneBrowserPayload | null,
+  previousUpdatedAt?: string,
+): Promise<{
+  payload: CheckPhoneBrowserPayload | null;
+  summary: string;
+  error?: string;
+  debugRawOutput?: string;
+  debugSanitizedOutput?: string;
+  debugParseMode?: "raw" | "sanitized" | "failed";
+  debugParseError?: string;
+  debugNormalizeError?: string;
+}> {
+  // The first-page browser history/bookmarks are regular Check Phone snapshots.
+  // The second-page specialty site alone uses the dedicated checkphone_browser binding.
+  const { apiConfig, preset, worldBooks, regexes } = resolveCheckPhoneConfigs(characterId);
+  if (!apiConfig) return { payload: null, summary: "", error: "未找到可用的 API 配置", debugRawOutput: "", debugParseMode: "failed" };
+
+  try {
+    const messages = await buildCheckPhoneAppMessages(characterId, "browser", preset, worldBooks, regexes, {
+      snapshotSummary: previousPayload ? formatSnapshotSummary(previousPayload) : "",
+      lastRefreshAt: previousUpdatedAt ?? "",
+    });
+    const rawOutput = await sendLLMRequest(
+      apiConfig,
+      preset,
+      messages,
+      regexes,
+      { characterName: loadCharacters().find((item) => item.id === characterId)?.name },
+      { skipOutputRegex: true, appId: "checkphone_browser" },
+    );
+
+    if (!rawOutput?.trim()) return { payload: null, summary: "", error: "LLM 返回为空", debugRawOutput: rawOutput ?? "", debugParseMode: "failed" };
+    const { parsed, sanitizedCandidate, parseMode, parseError } = parseBrowserBlockPayload(rawOutput);
+    const payload = normalizeBrowserPayload(parsed);
+    if (!payload) {
+      return {
+        payload: null,
+        summary: "",
+        error: "无法解析浏览器内容",
+        debugRawOutput: rawOutput,
+        debugSanitizedOutput: sanitizedCandidate,
+        debugParseMode: parseMode,
+        debugParseError: parseError || undefined,
+      };
+    }
+    return {
+      payload,
+      summary: formatSnapshotSummary(payload),
+      debugSanitizedOutput: parseMode === "sanitized" ? sanitizedCandidate : undefined,
+      debugParseMode: parseMode,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "生成失败";
+    return { payload: null, summary: "", error: message, debugRawOutput: "", debugParseMode: "failed", debugParseError: message };
+  }
+}
 
 function slugifyCheckPhoneId(value: string, fallback: string): string {
   const ascii = value

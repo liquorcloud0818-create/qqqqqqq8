@@ -1,7 +1,7 @@
 import {kvGet,kvSet,registerKvMigration} from './kv-db';
 const KEY='rabbit_inspection_permissions_v1',REQUESTS='rabbit_inspection_requests_v1';registerKvMigration(KEY);registerKvMigration(REQUESTS);
 export const INSPECTION_UPDATED='rabbit-inspection-settings-updated';
-export const INSPECTION_AREAS=[{id:'chat',label:'Chat',description:'消息列表、聊天记录和朋友圈'},{id:'shopping',label:'购物和外卖',description:'购物车与订单记录'},{id:'reading',label:'阅读',description:'书架与阅读内容'},{id:'icity',label:'iCity',description:'你的日记与交换日记关系'}] as const;
+export const INSPECTION_AREAS=[{id:'chat',label:'Chat',description:'消息列表、聊天记录和朋友圈'},{id:'shopping',label:'购物和外卖',description:'购物车与订单记录'},{id:'reading',label:'阅读',description:'书架与阅读内容'},{id:'icity',label:'iCity',description:'你的日记与交换日记关系'},{id:'browser',label:'浏览器',description:'搜索、收藏和浏览记录'}] as const;
 export type InspectionArea=typeof INSPECTION_AREAS[number]['id'];
 export type InspectionPermission={allowedApps?:Partial<Record<InspectionArea,boolean>>;proactive:boolean;secret:boolean;minDays:number;maxDays:number;cooldownHours:number;dailyLimit:number;nextAt?:number};
 export type InspectionRequest={id:string;owner:string;sessionId:string;at:number;state:'pending'|'accepted'|'refused'};

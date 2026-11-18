@@ -32,7 +32,7 @@ export function buildWeverseLiveMemory(
     if (live.official || live.status !== "ended" || end === undefined || !Number.isFinite(start) || !Number.isFinite(end) || end < start) return [];
     const participants = spans(live.participantPresence?.length
         ? live.participantPresence
-        : (live.hostCharacterIds || []).slice(0, 1).map(id => ({ characterId: id, joinedAt: start, leftAt: end })), start, end);
+        : (live.hostCharacterIds || []).map(id => ({ characterId: id, joinedAt: start, leftAt: end })), start, end);
     const onStage = participants.filter(span => span.id === characterId);
     const watching = spans(live.viewerPresence || [], start, end).filter(span => span.id === characterId);
     const attended = [...onStage, ...watching].sort((a, b) => a.from - b.from);
@@ -59,7 +59,7 @@ export function buildWeverseLiveMemory(
     });
     const sawOpening = watched(start);
     const stageNames = [...new Set(participants.filter(span => span.id !== characterId && attended.some(own => overlap(own, span))).map(span => nameOf(span.id)))];
-    const shared = onStage.some(span => participants.some(other => other.id.startsWith("user:") && overlap(span, other)));
+    const shared = onStage.some(span => participants.some(other => other.id !== characterId && !other.id.startsWith("user:") && overlap(span, other)));
     const prefix = `weverse_live_${onStage.length ? "participant" : "viewer"}_${live.id}_${characterId}`;
     const sourceKeys = [`wvs:${live.id}`];
     const entries: WeverseProjectionEntry[] = [{

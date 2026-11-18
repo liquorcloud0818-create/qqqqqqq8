@@ -19,9 +19,10 @@ import { estimateTokens } from "./token-counter";
 export async function retrieveMemoriesForPrompt(
     characterId: string,
     currentContext: string,
-    config: MemoryConfig
+    config: MemoryConfig,
+    options?: { beforeTimestamp?: string },
 ): Promise<MemoryEntry[]> {
-    const longTermEntries = await loadMemoryEntriesByType(characterId, "long_term");
+    const longTermEntries = (await loadMemoryEntriesByType(characterId, "long_term")).filter(e => memoryAvailableAt(e, options?.beforeTimestamp));
     if (longTermEntries.length === 0 || !currentContext.trim()) return [];
 
     const budget = config.longTermTokenBudget;
@@ -69,8 +70,9 @@ export async function retrieveMemoriesForPrompt(
 export async function retrieveCoreMemoriesForPrompt(
     characterId: string,
     config: MemoryConfig,
+    options?: { beforeTimestamp?: string },
 ): Promise<MemoryEntry[]> {
-    const coreEntries = await loadMemoryEntriesByType(characterId, "core");
+    const coreEntries = (await loadMemoryEntriesByType(characterId, "core")).filter(e => memoryAvailableAt(e, options?.beforeTimestamp));
     if (coreEntries.length === 0) return [];
 
     const sorted = [...coreEntries].sort((a, b) => {
@@ -96,4 +98,11 @@ function fillByBudget(entries: MemoryEntry[], budget: number): MemoryEntry[] {
         used += tokens;
     }
     return result;
+}
+
+// Summaries written later may contain later knowledge even if their first fact is old.
+function memoryAvailableAt(entry: MemoryEntry, before?: string): boolean {
+    if (!before) return true;
+    return entry.createdAt <= before && (entry.updatedAt || entry.createdAt) <= before
+        && String(entry.metadata?.occurredTo || entry.metadata?.occurredFrom || "") <= before;
 }

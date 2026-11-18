@@ -1,0 +1,43 @@
+name: Validate share Browser integration
+on:
+  push:
+    branches: [main]
+    paths:
+      - "components/browser/**"
+      - "components/checkphone/**"
+      - "components/desktop-shell.tsx"
+      - "components/settings/binding-manager.tsx"
+      - "lib/browser-collection.ts"
+      - "lib/builtin-preset.ts"
+      - "lib/checkphone-*.ts"
+      - "lib/desktop-config.ts"
+      - "lib/settings-storage.ts"
+      - "lib/chat-engine.ts"
+      - "lib/reverse-phone-*.ts"
+      - "lib/secret-phone-inspection.ts"
+      - "lib/phone-inspection-settings.ts"
+      - "scripts/check-browser-009.cjs"
+      - "scripts/check-inspection-revocation.cjs"
+      - "lib/short-term-assembler.ts"
+      - "components/chat/reverse-phone-overlay.tsx"
+      - ".github/workflows/share-browser-check.yml"
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - name: TypeScript check
+        run: npm run typecheck
+      - name: Browser regression checks
+        run: node scripts/check-browser-009.cjs
+      - name: Phone inspection revocation regression
+        run: node scripts/check-inspection-revocation.cjs
+      - name: Android web bundle
+        run: npm run android:web

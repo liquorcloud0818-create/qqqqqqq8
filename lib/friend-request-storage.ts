@@ -12,6 +12,8 @@ export type FriendRequest = {
     status: "pending" | "accepted" | "rejected" | "abandoned";
     round: number;           // attempt number (1, 2, 3)
     createdAt: string;       // ISO date
+    source?: "recommendation";
+    recommendationId?: string;
 };
 
 const STORAGE_KEY = "ai_phone_friend_requests_v1";
@@ -32,7 +34,7 @@ function saveFriendRequests(requests: FriendRequest[]): void {
     kvSet(STORAGE_KEY, JSON.stringify(requests));
 }
 
-export function addFriendRequest(characterId: string, message: string, round: number): FriendRequest {
+export function addFriendRequest(characterId: string, message: string, round: number, meta?: {source?: "recommendation"; recommendationId?: string}): FriendRequest {
     const all = loadFriendRequests();
     const req: FriendRequest = {
         id: `freq_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -41,6 +43,7 @@ export function addFriendRequest(characterId: string, message: string, round: nu
         status: "pending",
         round,
         createdAt: new Date().toISOString(),
+        ...(meta?.source ? { source: meta.source, recommendationId: meta.recommendationId } : {}),
     };
     all.push(req);
     saveFriendRequests(all);

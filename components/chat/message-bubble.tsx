@@ -14,6 +14,7 @@ import { isMediaStoreRef, loadMediaObjectUrl } from "@/lib/media-cache-storage";
 import { getChatImageFromIndexedDB } from "@/lib/chat-asset-storage";
 import { TheqooSnapshotWindow } from "@/components/theqoo/theqoo-snapshot";
 import { ChatMessage, createOrGetSession, loadChatAppSettings, resolveMeetingInviteCardConfig, updateMessageMediaStatus, updateMessageMediaData } from "@/lib/chat-storage";
+import { resolveChatCharacterDisplayName } from "@/lib/chat-profile-storage";
 import { resolveContactCard } from "@/lib/contact-card";
 import { loadCharacters } from "@/lib/character-storage";
 import { CHAT_OPEN_SESSION_EVENT, dispatchOpenAddContact } from "@/lib/chat-notification-events";
@@ -1138,10 +1139,10 @@ function ContactCardBubble({ msg, characterId }: { msg: ChatMessage; characterId
     const [resolveTick, setResolveTick] = useState(0);
 
     const resolved = useMemo(
-        () => (characterId && contactName ? resolveContactCard(characterId, contactName) : { character: null, isContact: false }),
+        () => (characterId && contactName ? resolveContactCard(characterId, contactName, msg.mediaData?.contactCardCharacterId) : { character: null, isContact: false }),
         // resolveTick：建档完成后强制重新解析
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [characterId, contactName, resolveTick],
+        [characterId, contactName, msg.mediaData?.contactCardCharacterId, resolveTick],
     );
     const recommenderName = useMemo(
         () => loadCharacters().find(c => c.id === characterId)?.name || "对方",
@@ -1175,10 +1176,10 @@ function ContactCardBubble({ msg, characterId }: { msg: ChatMessage; characterId
                             : <CharAvatarFallbackInline name={contactName} />}
                     </div>
                     <div className="chat-contact-card-info">
-                        <div className="chat-contact-card-name">{contactName || "联系人"}</div>
+                        <div className="chat-contact-card-name">{resolved.character ? resolveChatCharacterDisplayName(resolved.character) : contactName || "联系人"}</div>
                         <div className="chat-contact-card-sub">
                             {resolved.character
-                                ? `微信号: ${resolved.character.wechatID || resolved.character.id.slice(0, 10)}`
+                                ? `Phone number: ${resolved.character.wechatID || ""}`
                                 : "点击查看"}
                         </div>
                     </div>

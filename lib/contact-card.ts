@@ -4,6 +4,7 @@
 // 名片消息只存名字（contactCardName），渲染时实时解析——这样未建档的
 // 名片在用户现场生成档案后，所有同名旧名片自动变为可添加状态。
 
+import { resolveChatCharacterDisplayName } from "./chat-profile-storage";
 import { loadCharacters } from "./character-storage";
 import { loadChatContacts, loadChatMessages, type ChatMessage } from "./chat-storage";
 import { loadCharacterWorldGroups } from "./character-world-storage";
@@ -21,7 +22,7 @@ export type ResolvedContactCard = {
 };
 
 /** 按推荐人所在世界解析名片名字（别的世界允许同名，不跨界匹配）。 */
-export function resolveContactCard(recommenderCharacterId: string, contactName: string): ResolvedContactCard {
+export function resolveContactCard(recommenderCharacterId: string, contactName: string, characterId?: string): ResolvedContactCard {
     const normalized = normalizeContactName(contactName);
     if (!normalized) return { character: null, isContact: false };
 
@@ -29,7 +30,7 @@ export function resolveContactCard(recommenderCharacterId: string, contactName: 
     const group = loadCharacterWorldGroups().find(g => g.memberIds.includes(recommenderCharacterId));
     const memberIds = new Set(group?.memberIds ?? []);
     const character = characters.find(c =>
-        memberIds.has(c.id) && normalizeContactName(c.name || "") === normalized
+        memberIds.has(c.id) && (characterId ? c.id === characterId : [c.name, resolveChatCharacterDisplayName(c)].some(n => normalizeContactName(n || "") === normalized))
     ) ?? null;
 
     if (!character) return { character: null, isContact: false };

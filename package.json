@@ -1,6 +1,6 @@
 {
   "name": "ai-virtual-phone",
-  "version": "1.6.3",
+  "version": "1.7.0",
   "private": true,
   "license": "AGPL-3.0-only",
   "scripts": {
@@ -18,7 +18,8 @@
     "prebuild": "node scripts/prepare-document-reader.mjs",
     "preandroid:web": "node scripts/prepare-document-reader.mjs",
     "typecheck": "tsc --noEmit",
-    "check:share": "node scripts/check-share-source.mjs"
+    "check:share": "node scripts/check-share-source.mjs",
+    "check:memory": "node scripts/check-cross-app-memory.cjs"
   },
   "dependencies": {
     "@capacitor/android": "6.2.1",

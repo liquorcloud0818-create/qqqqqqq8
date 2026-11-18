@@ -1,6 +1,7 @@
 import type { CustomAppIconId } from "@/lib/custom-app-types";
 
 export type IconId =
+  | "browser"
   | "chat"
   | "photos"
   | "weverse"
@@ -69,7 +70,8 @@ export const PAGE_2_DEFAULT: IconId[] = [
   "mapmode",
   "photos",
   "weverse",
-  "lysn"
+  "lysn",
+  "browser"
 ];
 
 // 第三页默认图标：右半边 2×2 排布（左半边留给日历组件），位置见 createDefaultDesktopIconLayout
@@ -79,6 +81,7 @@ export const DOCK_DEFAULT: IconId[] = ["settings", "theme", "resources", "charac
 
 export const ICONS: Record<IconId, IconMeta> = {
   novel: {id:"novel",label:"NovelNow",tone:"#333333",placeholder:false},
+  browser: {id:"browser",label:"浏览器",tone:"#348ce7",placeholder:false},
   chat: { id: "chat", label: "\u804a\u5929", tone: "var(--c-icon-green)", placeholder: false },
   photos: { id: "photos", label: "照片", tone: "var(--c-icon-rose)", placeholder: false },
   weverse: { id: "weverse", label: "Weverse", tone: "var(--c-icon-teal)", placeholder: false },

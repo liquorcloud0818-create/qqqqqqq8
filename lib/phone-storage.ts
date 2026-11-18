@@ -1,3 +1,5 @@
+import { queueNativeMemoryUpdate } from "./native-memory-update";
+import { revokeMemorySources } from "./memory-event-meta";
 import { DEFAULT_PHONE_RINGTONE } from "./default-notification-sounds";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 import { loadSms, saveSms, phoneFromPersona } from "./sms-storage";
@@ -92,6 +94,7 @@ export function appendPhoneCall(record: PhoneCallRecord): void {
   else state.calls.unshift(record.status === "missed" && record.direction === "incoming" ? { ...record, seenAt: null } : record);
   state.calls = state.calls.slice(0, 500);
   savePhoneState(state);
+  if (idx < 0) queueNativeMemoryUpdate([record.characterId], "phone");
 }
 export function getUnseenMissedCallCount(state: PhoneState = loadPhoneState()): number {
   return state.calls.filter(call => call.status === "missed" && call.direction === "incoming" && call.seenAt === null).length;
@@ -114,6 +117,7 @@ export function removePhoneCall(callId: string): void {
   const state = loadPhoneState();
   const nextCalls = state.calls.filter(c => c.id !== callId);
   if (nextCalls.length === state.calls.length) return;
+  revokeMemorySources([`phone:${callId}`]);
   state.calls = nextCalls;
   savePhoneState(state);
 }

@@ -22,6 +22,8 @@ export type CharacterWorldRelation = {
     locked?: boolean;
     kind?: RelationKind;
     createdAt?: string;
+    /** Only the card that created this relation may undo it on deletion. */
+    sourceMessageId?: string;
 };
 
 export type CharacterWorldGroup = {
@@ -248,7 +250,7 @@ export function moveCharacterToWorld(characterId: string, groupId: string): void
     }));
 }
 
-export function addCharacterWorldRelation(groupId: string, fromCharacterId: string, toCharacterId: string, label: string, options?: { bidirectional?: boolean; locked?: boolean; kind?: RelationKind }): void {
+export function addCharacterWorldRelation(groupId: string, fromCharacterId: string, toCharacterId: string, label: string, options?: { bidirectional?: boolean; locked?: boolean; kind?: RelationKind; sourceMessageId?: string }): void {
     const trimmedLabel = label.trim();
     if (!trimmedLabel || fromCharacterId === toCharacterId) return;
     const now = new Date().toISOString();
@@ -270,6 +272,7 @@ export function addCharacterWorldRelation(groupId: string, fromCharacterId: stri
                     locked: options?.kind === "family" || (options?.locked ?? options?.kind === "enemy"),
                     kind: normalizeRelationKind(options?.kind),
                     createdAt: now,
+                    ...(options?.sourceMessageId ? { sourceMessageId: options.sourceMessageId } : {}),
                 },
             ],
             updatedAt: now,

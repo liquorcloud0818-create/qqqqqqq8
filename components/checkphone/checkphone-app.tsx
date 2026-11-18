@@ -49,6 +49,7 @@ import { ConfirmDialog, Toggle } from "@/components/ui";
 import { CheckPhoneDebugErrorCard } from "@/components/checkphone/checkphone-debug-error-card";
 import { CheckPhoneAssetsPage } from "@/components/checkphone/checkphone-assets-page";
 import { CheckPhoneBilibiliPage } from "@/components/checkphone/checkphone-bilibili-page";
+import { CheckPhoneBrowserPage } from "@/components/checkphone/checkphone-browser-page";
 import { CheckPhoneChatPage } from "@/components/checkphone/checkphone-chat-page";
 import { CheckPhoneDoubanPage } from "@/components/checkphone/checkphone-douban-page";
 import { CheckPhoneDouyinPage } from "@/components/checkphone/checkphone-douyin-page";
@@ -121,6 +122,7 @@ const CHECKPHONE_EMBEDDED_APP_IDS = [
   "shopping",
   "assets",
   "photos",
+  "browser",
   "messages",
   "music",
   "reading",
@@ -171,6 +173,11 @@ const IconSolidPhone = ({ size = 32 }: { size?: number | string }) => (
 const IconSolidPhotos = ({ size = 32 }: { size?: number | string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
     <path d="M3 6.75A3.75 3.75 0 016.75 3h10.5A3.75 3.75 0 0121 6.75v10.5A3.75 3.75 0 0117.25 21H6.75A3.75 3.75 0 013 17.25V6.75zM17.25 18a2.25 2.25 0 002.25-2.25V12.6l-2.48-2.48a1.5 1.5 0 00-2.12 0L9.12 15.9l-1.4-1.4a1.5 1.5 0 00-2.12 0L4.5 15.6v1.65A2.25 2.25 0 006.75 18h10.5z" />
+  </svg>
+);
+const IconSolidBrowser = ({ size = 32 }: { size?: number | string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2A10 10 0 1022 12 10 10 0 0012 2zm2.14 12.82l-5.6 1.83a.47.47 0 01-.6-.6l1.83-5.6a1 1 0 01.5-.5l5.6-1.83a.47.47 0 01.6.6l-1.83 5.6a1 1 0 01-.5.5zM12 10.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
   </svg>
 );
 const IconSolidMessages = ({ size = 32 }: { size?: number | string }) => (
@@ -243,6 +250,7 @@ function AppGlyph({ appId, size = 26, strokeWidth = 1.5 }: { appId: CheckPhoneAp
   switch (appId) {
     case "phone": return <IconSolidPhone size={size} />;
     case "messages": return <IconSolidMessages size={size} />;
+    case "browser": return <IconSolidBrowser size={size} />;
     case "photos": return <IconSolidPhotos size={size} />;
     case "chat": return <IconSolidChat size={size} />;
     case "shopping": return <IconSolidShop size={size} />;
@@ -271,7 +279,7 @@ function getAppIconClass(appId: CheckPhoneAppId, isDock = false) {
   // Interspersed distribution to ensure grey icons don't cluster in one column
   const midGreyApps: string[] = ["photos", "weibo", "steam", "telegram", "reddit"];
   const lightGreyApps: string[] = ["messages", "bilibili", "xiaohongshu", "email", "instagram"];
-  const whiteApps: string[] = ["douyin", "reading", "notes", "shopping", "assets"];
+  const whiteApps: string[] = ["browser", "douyin", "reading", "notes", "shopping", "assets"];
 
   if (midGreyApps.includes(appId)) return `${baseClass} cp-app-icon--mid-grey`;
   if (lightGreyApps.includes(appId)) return `${baseClass} cp-app-icon--light-grey`;
@@ -510,6 +518,8 @@ export function CheckPhoneApp({ onClose }: CheckPhoneAppProps) {
         return <CheckPhoneAssetsPage character={activeCharacter} onBack={closeSelectedApp} />;
       case "photos":
         return <CheckPhonePhotosPage character={activeCharacter} onBack={closeSelectedApp} />;
+      case "browser":
+        return <CheckPhoneBrowserPage character={activeCharacter} onBack={closeSelectedApp} />;
       case "messages":
         return <CheckPhoneMessagesPage character={activeCharacter} onBack={closeSelectedApp} />;
       case "music":

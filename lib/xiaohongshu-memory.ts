@@ -1,3 +1,4 @@
+import { revokeMemorySources } from "./memory-event-meta";
 import { kvGet, kvKeysWithPrefix, kvRemove, kvSet, registerDynamicPrefix } from "./kv-db";
 import { formatChatTimestamp } from "./llm-prompt-assembler";
 import type { XiaohongshuComment, XiaohongshuNote } from "./xiaohongshu-types";
@@ -13,6 +14,7 @@ export type XiaohongshuProjectionEntry = {
   content: string;
   noteId?: string;
   commentId?: string;
+  sourceKeys?: string[];
 };
 
 type RecordXiaohongshuPostEventInput = {
@@ -103,7 +105,7 @@ function saveEvents(characterId: string, events: XiaohongshuProjectionEntry[]): 
 }
 
 function upsertEvent(characterId: string, entry: XiaohongshuProjectionEntry): void {
-  const events = loadEvents(characterId);
+  const events: XiaohongshuProjectionEntry[] = loadEvents(characterId).map(e => ({...e, sourceKeys: [...(e.noteId ? [`xhs:note:${e.noteId}`] : []), ...(e.commentId ? [`xhs:comment:${e.commentId}`] : [])]}));
   const next = events.filter(item => item.id !== entry.id);
   next.push(entry);
   saveEvents(characterId, next);
@@ -197,6 +199,7 @@ export function recordXiaohongshuFollowUserEvent(input: RecordXiaohongshuFollowU
 
 export function deleteXiaohongshuProjectionEventsForNote(noteId: string): void {
   if (!noteId || typeof window === "undefined") return;
+  revokeMemorySources([`xhs:note:${noteId}`]);
   for (const key of kvKeysWithPrefix(XIAOHONGSHU_EVENT_PREFIX)) {
     const events = loadEventsByKey(key);
     const next = events.filter(entry => !belongsToNote(entry, noteId));
@@ -208,6 +211,7 @@ export function deleteXiaohongshuProjectionEventsForNote(noteId: string): void {
 
 export function deleteXiaohongshuProjectionEventForComment(commentId: string): void {
   if (!commentId || typeof window === "undefined") return;
+  revokeMemorySources([`xhs:comment:${commentId}`]);
   for (const key of kvKeysWithPrefix(XIAOHONGSHU_EVENT_PREFIX)) {
     const events = loadEventsByKey(key);
     const next = events.filter(entry =>
@@ -232,7 +236,7 @@ export function loadXiaohongshuProjectionEntries(
   characterId: string,
   options?: { afterTimestamp?: string },
 ): XiaohongshuProjectionEntry[] {
-  const events = loadEvents(characterId);
+  const events: XiaohongshuProjectionEntry[] = loadEvents(characterId).map(e => ({...e, sourceKeys: [...(e.noteId ? [`xhs:note:${e.noteId}`] : []), ...(e.commentId ? [`xhs:comment:${e.commentId}`] : [])]}));
   if (!options?.afterTimestamp) return events;
   return events.filter(entry => entry.timestamp > options.afterTimestamp!);
 }
