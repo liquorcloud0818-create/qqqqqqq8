@@ -51,7 +51,7 @@ export function PlatformAvatarSettings({ value, onChange, nicknames, onNicknames
     return () => { active = false; };
   }, [value]);
 
-  const platforms = [...BUILT_IN_PLATFORMS, ...customApps];
+ const platforms = BUILT_IN_PLATFORMS;
   const visiblePlatforms = editing
     ? platforms
     : platforms.filter(platform => Boolean(value[platform.id] && previews[platform.id]));
