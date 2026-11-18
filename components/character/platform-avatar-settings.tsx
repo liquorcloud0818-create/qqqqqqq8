@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { resolvePlatformAvatarAsset, savePlatformAvatarAsset } from "@/lib/platform-avatar-storage";
-import { CUSTOM_APPS_UPDATED_EVENT, loadInstalledCustomApps } from "@/lib/custom-app-storage";
+
 
 type PlatformOption = { id: string; name: string };
 
@@ -25,24 +25,12 @@ const BUILT_IN_PLATFORMS: PlatformOption[] = [
 ];
 
 export function PlatformAvatarSettings({ value, onChange, nicknames, onNicknamesChange, editing, onNotice }: Props) {
-  const [customApps, setCustomApps] = useState<PlatformOption[]>([]);
+  
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  useEffect(() => {
-    const refresh = () => {
-      const apps = loadInstalledCustomApps().map(app => ({
-        id: `custom:${app.id}`,
-        name: app.name || "自定义 APP",
-        kind: "custom" as const,
-      })).sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
-      setCustomApps(apps);
-    };
-    refresh();
-    window.addEventListener(CUSTOM_APPS_UPDATED_EVENT, refresh);
-    return () => window.removeEventListener(CUSTOM_APPS_UPDATED_EVENT, refresh);
-  }, []);
+  
 
   useEffect(() => {
     let active = true;
