@@ -5,7 +5,7 @@ import { ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { resolvePlatformAvatarAsset, savePlatformAvatarAsset } from "@/lib/platform-avatar-storage";
 import { CUSTOM_APPS_UPDATED_EVENT, loadInstalledCustomApps } from "@/lib/custom-app-storage";
 
-type PlatformOption = { id: string; name: string; kind: "built-in" | "custom" };
+type PlatformOption = { id: string; name: string };
 
 type Props = {
   value: Record<string, string>;
@@ -17,14 +17,11 @@ type Props = {
 };
 
 const BUILT_IN_PLATFORMS: PlatformOption[] = [
-  { id: "chat", name: "聊天 / 朋友圈", kind: "built-in" },
-  { id: "twitter", name: "X", kind: "built-in" },
-  { id: "weibo", name: "微博", kind: "built-in" },
-  { id: "douyin", name: "抖音", kind: "built-in" },
-  { id: "xiaohongshu", name: "小红书", kind: "built-in" },
-  { id: "weverse", name: "Weverse", kind: "built-in" },
-  { id: "lysn", name: "Lysn", kind: "built-in" },
-  { id: "lianhua", name: "蓮華", kind: "built-in" },
+  { id: "chat", name: "聊天 / 朋友圈" },
+  { id: "twitter", name: "X" },
+  { id: "weibo", name: "微博" },
+  { id: "douyin", name: "抖音" },
+  { id: "xiaohongshu", name: "小红书" },
 ];
 
 export function PlatformAvatarSettings({ value, onChange, nicknames, onNicknamesChange, editing, onNotice }: Props) {
