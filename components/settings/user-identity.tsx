@@ -1,11 +1,22 @@
 "use client";
 
-import { useState, useEffect, useCallback, useContext } from "react";
+import { useState, useEffect, useCallback, useContext, useRef } from "react";
 import { Plus, User, Trash2, FileEdit, AlertCircle, Camera, Link, X, Check } from "lucide-react";
 import { SettingsContext } from "../phone-settings-app";
 import { loadUserIdentities, saveUserIdentities } from "@/lib/settings-storage";
 import { Input } from "@/components/ui/form";
 import { ConfirmDialog } from "@/components/ui/modal";
+import {
+    USER_PLATFORM_IDS,
+    loadUserIdentityPlatformProfiles,
+    saveUserIdentityPlatformAvatars,
+    saveUserIdentityPlatformNicknames,
+    type UserPlatformId,
+} from "@/lib/user-platform-profile-storage";
+import {
+    resolvePlatformAvatarAsset,
+    savePlatformAvatarAsset,
+} from "@/lib/platform-avatar-storage";
 
 export type UserIdentity = {
     id: string;
@@ -18,6 +29,25 @@ export type UserIdentity = {
     customSettings: string; // 熟悉信息，保留原字段以兼容旧身份
     closeSettings?: string;
 };
+
+type UserPlatformDraftProfile = {
+    nickname: string;
+    avatarAssetId: string;
+    avatarUrl: string;
+};
+
+type UserPlatformDraftState = {
+    identityId: string;
+    profiles: Record<UserPlatformId, UserPlatformDraftProfile>;
+};
+
+const USER_PLATFORM_ITEMS: Array<{ id: UserPlatformId; label: string }> = [
+    { id: "chat", label: "Chat／朋友圈" },
+    { id: "twitter", label: "X" },
+    { id: "weibo", label: "微博" },
+    { id: "douyin", label: "抖音" },
+    { id: "xiaohongshu", label: "小红书" },
+];
 
 const DEFAULT_IDENTITIES: UserIdentity[] = [
     {
@@ -68,6 +98,98 @@ export function UserIdentitySettings() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [isNewIdentity, setIsNewIdentity] = useState(false);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [platformDraft, setPlatformDraft] = useState<UserPlatformDraftState | null>(null);
+    const platformDraftRef = useRef<UserPlatformDraftState | null>(null);
+    const [platformProfileError, setPlatformProfileError] = useState("");
+
+    const updatePlatformDraftProfile = useCallback((
+        identityId: string,
+        platformId: UserPlatformId,
+        updates: Partial<UserPlatformDraftProfile>,
+    ) => {
+        const current = platformDraftRef.current;
+        if (!current || current.identityId !== identityId) return;
+
+        const next: UserPlatformDraftState = {
+            ...current,
+            profiles: {
+                ...current.profiles,
+                [platformId]: { ...current.profiles[platformId], ...updates },
+            },
+        };
+        platformDraftRef.current = next;
+        setPlatformDraft(next);
+
+        try {
+            if (Object.prototype.hasOwnProperty.call(updates, "nickname")) {
+                saveUserIdentityPlatformNicknames(identityId, Object.fromEntries(
+                    USER_PLATFORM_IDS.map(id => [id, next.profiles[id].nickname]),
+                ));
+            }
+            if (Object.prototype.hasOwnProperty.call(updates, "avatarAssetId")) {
+                saveUserIdentityPlatformAvatars(identityId, Object.fromEntries(
+                    USER_PLATFORM_IDS.map(id => [id, next.profiles[id].avatarAssetId]),
+                ));
+            }
+            setPlatformProfileError("");
+        } catch {
+            setPlatformProfileError("平台资料保存失败，请重试。");
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!editingId) {
+            platformDraftRef.current = null;
+            setPlatformDraft(null);
+            setPlatformProfileError("");
+            return;
+        }
+
+        let active = true;
+        const saved = loadUserIdentityPlatformProfiles(editingId);
+        const base: UserPlatformDraftState = {
+            identityId: editingId,
+            profiles: Object.fromEntries(USER_PLATFORM_IDS.map(id => [
+                id,
+                {
+                    nickname: saved[id]?.nickname || "",
+                    avatarAssetId: saved[id]?.avatarAssetId || "",
+                    avatarUrl: "",
+                },
+            ])) as Record<UserPlatformId, UserPlatformDraftProfile>,
+        };
+
+        platformDraftRef.current = base;
+        setPlatformDraft(base);
+        setPlatformProfileError("");
+
+        void Promise.all(USER_PLATFORM_IDS.map(async id => {
+            const assetId = saved[id]?.avatarAssetId || "";
+            const avatarUrl = assetId ? await resolvePlatformAvatarAsset(assetId) : null;
+            return { id, assetId, avatarUrl };
+        })).then(resolved => {
+            if (!active) return;
+            const current = platformDraftRef.current;
+            if (!current || current.identityId !== editingId) return;
+
+            const nextProfiles = { ...current.profiles };
+            for (const item of resolved) {
+                if (nextProfiles[item.id].avatarAssetId === item.assetId) {
+                    nextProfiles[item.id] = {
+                        ...nextProfiles[item.id],
+                        avatarUrl: item.avatarUrl || "",
+                    };
+                }
+            }
+            const next = { ...current, profiles: nextProfiles };
+            platformDraftRef.current = next;
+            setPlatformDraft(next);
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [editingId]);
 
     useEffect(() => {
         const saved = loadUserIdentities();
@@ -339,6 +461,95 @@ export function UserIdentitySettings() {
                                         <div className="flex flex-col gap-1">
                                             <label className="menu-desc ml-1">亲近信息</label>
                                             <textarea value={identity.closeSettings || ""} onChange={e => updateIdentity(identity.id, { closeSettings: e.target.value })} placeholder="亲近的人知道的近期动向、想法和计划..." rows={4} className="ui-textarea" />
+                                        </div>
+
+                                        <div className="mt-2 flex flex-col gap-3 border-t border-[var(--c-border)] pt-4">
+                                            <div className="flex flex-col gap-1">
+                                                <span className="menu-desc ml-1 font-semibold">平台资料</span>
+                                                <span className="ts-10 text-[var(--c-text-secondary)]">此身份卡独立使用以下昵称和头像，不与其他 User 身份或角色档案共用。</span>
+                                            </div>
+
+                                            {platformDraft?.identityId === identity.id ? (
+                                                <div className="flex flex-col gap-2">
+                                                    {USER_PLATFORM_ITEMS.map(({ id, label }) => {
+                                                        const profile = platformDraft.profiles[id];
+                                                        return (
+                                                            <div key={id} className="flex flex-col gap-2 rounded-2xl border border-[var(--c-border)] p-3">
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <span className="text-xs font-semibold text-[var(--c-text-title)]">{label}</span>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const input = document.createElement("input");
+                                                                            input.type = "file";
+                                                                            input.accept = "image/*";
+                                                                            input.onchange = () => {
+                                                                                const file = input.files?.[0];
+                                                                                if (!file) return;
+                                                                                void (async () => {
+                                                                                    try {
+                                                                                        setPlatformProfileError("");
+                                                                                        const avatarAssetId = await savePlatformAvatarAsset(file);
+                                                                                        const avatarUrl = await resolvePlatformAvatarAsset(avatarAssetId);
+                                                                                        updatePlatformDraftProfile(identity.id, id, {
+                                                                                            avatarAssetId,
+                                                                                            avatarUrl: avatarUrl || "",
+                                                                                        });
+                                                                                    } catch (error) {
+                                                                                        setPlatformProfileError(error instanceof Error ? error.message : "头像保存失败，请重试。");
+                                                                                    }
+                                                                                })();
+                                                                            };
+                                                                            input.click();
+                                                                        }}
+                                                                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium text-[var(--c-text)] hover:bg-[var(--c-page-body-bg)]"
+                                                                    >
+                                                                        <Camera size={13} />
+                                                                        更换头像
+                                                                    </button>
+                                                                </div>
+
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--c-page-body-bg)]">
+                                                                        {profile.avatarUrl ? (
+                                                                            <img src={profile.avatarUrl} alt="" className="h-full w-full object-cover" />
+                                                                        ) : (
+                                                                            <User size={18} className="text-[var(--c-icon)]" />
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <label className="menu-desc ml-1">平台昵称</label>
+                                                                        <Input
+                                                                            type="text"
+                                                                            value={profile.nickname}
+                                                                            onChange={event => updatePlatformDraftProfile(identity.id, id, { nickname: event.target.value })}
+                                                                            placeholder={`填写${label}昵称`}
+                                                                            maxLength={48}
+                                                                            className="ts-12"
+                                                                        />
+                                                                    </div>
+                                                                </div>
+
+                                                                {profile.avatarAssetId ? (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => updatePlatformDraftProfile(identity.id, id, { avatarAssetId: "", avatarUrl: "" })}
+                                                                        className="self-end text-[11px] text-[var(--c-text-secondary)] hover:text-[var(--c-text)]"
+                                                                    >
+                                                                        移除平台头像
+                                                                    </button>
+                                                                ) : null}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <span className="menu-desc">正在读取此身份的平台资料…</span>
+                                            )}
+
+                                            {platformProfileError ? (
+                                                <span role="alert" className="text-[11px] text-red-500">{platformProfileError}</span>
+                                            ) : null}
                                         </div>
                                     </>
                                 )
