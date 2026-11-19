@@ -9,8 +9,7 @@ import { ConfirmDialog } from "@/components/ui/modal";
 import {
     USER_PLATFORM_IDS,
     loadUserIdentityPlatformProfiles,
-    saveUserIdentityPlatformAvatars,
-    saveUserIdentityPlatformNicknames,
+    saveUserIdentityPlatformProfiles,
     type UserPlatformId,
 } from "@/lib/user-platform-profile-storage";
 import {
@@ -101,6 +100,9 @@ export function UserIdentitySettings() {
     const [platformDraft, setPlatformDraft] = useState<UserPlatformDraftState | null>(null);
     const platformDraftRef = useRef<UserPlatformDraftState | null>(null);
     const [platformProfileError, setPlatformProfileError] = useState("");
+    const [platformProfileMessage, setPlatformProfileMessage] = useState("");
+    const [uploadingPlatform, setUploadingPlatform] = useState<UserPlatformId | null>(null);
+    const [isSavingPlatformDraft, setIsSavingPlatformDraft] = useState(false);
 
     const updatePlatformDraftProfile = useCallback((
         identityId: string,
@@ -119,23 +121,31 @@ export function UserIdentitySettings() {
         };
         platformDraftRef.current = next;
         setPlatformDraft(next);
+        setPlatformProfileError("");
+        setPlatformProfileMessage("");
+    }, []);
 
+    const savePlatformDraft = useCallback((identityId: string) => {
+        const current = platformDraftRef.current;
+        if (!current || current.identityId !== identityId || uploadingPlatform !== null || isSavingPlatformDraft) return;
+
+        setIsSavingPlatformDraft(true);
+        setPlatformProfileError("");
+        setPlatformProfileMessage("");
         try {
-            if (Object.prototype.hasOwnProperty.call(updates, "nickname")) {
-                saveUserIdentityPlatformNicknames(identityId, Object.fromEntries(
-                    USER_PLATFORM_IDS.map(id => [id, next.profiles[id].nickname]),
-                ));
-            }
-            if (Object.prototype.hasOwnProperty.call(updates, "avatarAssetId")) {
-                saveUserIdentityPlatformAvatars(identityId, Object.fromEntries(
-                    USER_PLATFORM_IDS.map(id => [id, next.profiles[id].avatarAssetId]),
-                ));
-            }
-            setPlatformProfileError("");
+            saveUserIdentityPlatformProfiles(identityId, Object.fromEntries(
+                USER_PLATFORM_IDS.map(id => [id, {
+                    nickname: current.profiles[id].nickname,
+                    avatarAssetId: current.profiles[id].avatarAssetId,
+                }]),
+            ));
+            setPlatformProfileMessage("平台资料已保存");
         } catch {
             setPlatformProfileError("平台资料保存失败，请重试。");
+        } finally {
+            setIsSavingPlatformDraft(false);
         }
-    }, []);
+    }, [uploadingPlatform, isSavingPlatformDraft]);
 
     useEffect(() => {
         if (!editingId) {
@@ -162,6 +172,7 @@ export function UserIdentitySettings() {
         platformDraftRef.current = base;
         setPlatformDraft(base);
         setPlatformProfileError("");
+        setPlatformProfileMessage("");
 
         void Promise.all(USER_PLATFORM_IDS.map(async id => {
             const assetId = saved[id]?.avatarAssetId || "";
@@ -487,6 +498,7 @@ export function UserIdentitySettings() {
                                                                                 const file = input.files?.[0];
                                                                                 if (!file) return;
                                                                                 void (async () => {
+                                                                                    setUploadingPlatform(id);
                                                                                     try {
                                                                                         setPlatformProfileError("");
                                                                                         const avatarAssetId = await savePlatformAvatarAsset(file);
@@ -497,6 +509,8 @@ export function UserIdentitySettings() {
                                                                                         });
                                                                                     } catch (error) {
                                                                                         setPlatformProfileError(error instanceof Error ? error.message : "头像保存失败，请重试。");
+                                                                                    } finally {
+                                                                                        setUploadingPlatform(null);
                                                                                     }
                                                                                 })();
                                                                             };
@@ -547,6 +561,18 @@ export function UserIdentitySettings() {
                                                 <span className="menu-desc">正在读取此身份的平台资料…</span>
                                             )}
 
+                                            <button
+                                                type="button"
+                                                onClick={() => savePlatformDraft(identity.id)}
+                                                disabled={isSavingPlatformDraft || uploadingPlatform !== null}
+                                                className="ui-btn ui-btn-primary mt-1 w-full justify-center disabled:opacity-50"
+                                            >
+                                                {isSavingPlatformDraft ? "正在保存…" : uploadingPlatform ? "正在上传头像…" : "保存平台资料"}
+                                            </button>
+
+                                            {platformProfileMessage ? (
+                                                <span role="status" className="text-[11px] text-[var(--c-text-secondary)]">{platformProfileMessage}</span>
+                                            ) : null}
                                             {platformProfileError ? (
                                                 <span role="alert" className="text-[11px] text-red-500">{platformProfileError}</span>
                                             ) : null}
