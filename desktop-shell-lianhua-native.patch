@@ -1,0 +1,91 @@
+diff --git a/components/desktop-shell.tsx b/components/desktop-shell.tsx
+--- a/components/desktop-shell.tsx
++++ b/components/desktop-shell.tsx
+@@ -33,7 +33,8 @@
+ import { LysnApp } from "@/components/lysn/lysn-app";
+ import { SmsApp } from "@/components/sms/sms-app";
+ import { PhoneApp } from "@/components/phone/phone-app";
+ import { TwitterApp } from "@/components/twitter/twitter-app";
+ import { TheqooApp } from "@/components/theqoo/theqoo-app";
++import { LianhuaApp } from "@/components/lianhua/lianhua-app";
+ import { QuestionBoxApp } from "@/components/question-box/question-box-app";
+ import { maybeGenerateLysnBackgroundMessage } from "@/lib/lysn-background";
+@@ -153,5 +154,6 @@
+   ensureNativeWorldlineIcon,
+   ensureNativeNovelIcon,
+ } from "@/lib/desktop-layout-storage";
+ import { ensurePrivateLianhuaIcon } from "@/lib/lianhua-desktop-integration";
++import { getLianhuaPrivateAsset } from "@/lib/lianhua-private-storage";
+ import { WidgetRenderer } from "@/components/widgets/widget-renderer";
+@@ -1197,12 +1199,14 @@
+   const [shoppingMounted, setShoppingMounted] = useState(false);
+   const [shoppingBusy, setShoppingBusy] = useState(false);
+   const [theqooMounted, setTheqooMounted] = useState(false);
+   const [theqooBusy, setTheqooBusy] = useState(false);
++  const [lianhuaMounted, setLianhuaMounted] = useState(false);
+   const [marketTheqooMounted, setMarketTheqooMounted] = useState(false);
+   const marketTheqooBusyRef = useRef(false);
+   const marketTheqooLaunchContextRef = useRef<Record<string, unknown> | null>(null);
+   if (activeApp === "dwelling" && !dwellingMounted) setDwellingMounted(true);
+   if (activeApp === "xiaohongshu" && !xiaohongshuMounted) setXiaohongshuMounted(true);
+   if (activeApp === "shopping" && !shoppingMounted) setShoppingMounted(true);
+   if (activeApp === "theqoo" && !theqooMounted) setTheqooMounted(true);
++  if (activeApp === "lianhua" && !lianhuaMounted) setLianhuaMounted(true);
+   const [widgets, setWidgets] = useState<WidgetInstance[]>([]);
+@@ -2479,10 +2483,11 @@
+   const renderFolderMini = (memberId: DesktopIconId) => {
+     const meta = getDesktopIconMeta(memberId);
+     if (!meta) return null;
+     const skinId = activeIconSkins[memberId];
+     const skinUrl = skinId ? themeAssets[skinId] ?? null : null;
+     const customUrl = meta.customApp && customAppIconStyles[meta.customApp.id] !== "global"
+       ? meta.customApp.iconDataUrl ?? null
+       : null;
+-    const imageUrl = skinUrl || customUrl;
++    const privateLianhuaIcon = memberId === "lianhua" ? getLianhuaPrivateAsset("icon.png") : null;
++    const imageUrl = skinUrl || customUrl || privateLianhuaIcon;
+     return (
+@@ -4278,6 +4283,9 @@
+     if (activeApp === "theqoo") {
+       return null;
+     }
++    if (activeApp === "lianhua") {
++      return null;
++    }
+     if (activeApp === "question_box") {
+       return <QuestionBoxApp onClose={() => setActiveApp(null)} onNotice={setNotice} />;
+     }
+@@ -4935,5 +4943,6 @@
+                               const customIconUrl = customApp && customAppIconStyles[customApp.id] !== "global"
+                                 ? customApp.iconDataUrl ?? null
+                                 : null;
+-                              const iconImageUrl = iconSkinUrl || customIconUrl;
++                              const privateLianhuaIcon = iconId === "lianhua" ? getLianhuaPrivateAsset("icon.png") : null;
++                              const iconImageUrl = iconSkinUrl || customIconUrl || privateLianhuaIcon;
+                               const hasImageIcon = Boolean(iconImageUrl);
+@@ -5055,17 +5064,25 @@
+                 {theqooMounted && (
+                   <section className="phone-app-pane" style={activeApp !== "theqoo" ? { display: "none" } : undefined}>
+                     <TheqooApp
+                       onClose={handleCloseTheqoo}
+                       onNotice={setNotice}
+                       visible={activeApp === "theqoo"}
+                       onBusyChange={setTheqooBusy}
+                       onIdle={() => {
+                         if (activeApp !== "theqoo") {
+                           setTheqooBusy(false);
+                           setTheqooMounted(false);
+                         }
+                       }}
+                     />
+                   </section>
+                 )}
++                {lianhuaMounted && (
++                  <section className="phone-app-pane" style={activeApp !== "lianhua" ? { display: "none" } : undefined}>
++                    <LianhuaApp
++                      visible={activeApp === "lianhua"}
++                      onNotice={setNotice}
++                    />
++                  </section>
++                )}
+                 {marketTheqooMounted && (() => {
