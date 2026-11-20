@@ -124,6 +124,7 @@ async function checkChatPlayback() {
         },
         useRef: initial => refs[refIndex++] ||= { current: initial }, useEffect() {},
         splitBilingualText: () => null,
+        voiceBubbleWidth: moduleAt("lib/chat-presentation.ts").voiceBubbleWidth,
         synthesizeVoiceForMessage: () => { synthesisCount++; events.push('synthesize'); return new Promise(resolve => { finishSynthesis = resolve; }); },
         primeSpeechAudioElement: audio => { events.push('prime'); audio.src = 'silent'; },
         speechPlaybackError: () => new Error('播放被浏览器拦截，请点击重试'),

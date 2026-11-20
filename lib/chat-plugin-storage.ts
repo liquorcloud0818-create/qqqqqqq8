@@ -2,7 +2,8 @@
 // 聊天插件系统 · 存储层：安装表 / 共享变量池 / 持久提示词片段 / 插件私有数据桶 / 错误日志。
 // 运行时（加载执行、hook 总线、ctx 构建）见 chat-plugin-runtime.ts。
 
-import { kvGet, kvSet, kvRemove, registerKvMigration } from "./kv-db";
+import { BUILTIN_KAKAO_PLUGIN_CODE, BUILTIN_KAKAO_PLUGIN_MANIFEST } from "./builtin-chat-plugin";
+import { kvGet, kvSet, kvRemove, registerKvMigration, isKvHydrated } from "./kv-db";
 import type {
     ChatPluginErrorEntry,
     ChatPluginManifest,
@@ -12,6 +13,8 @@ import type {
 import { CHAT_PLUGIN_API_VERSION } from "./chat-plugin-types";
 
 const PLUGINS_KEY = "chat_plugins_v3";
+const BUILTIN_SEED_KEY = "chat_plugin_kakao_seed_v1";
+registerKvMigration(BUILTIN_SEED_KEY);
 const VARS_KEY = "chat_plugin_vars_v2";
 const FRAGMENTS_KEY = "chat_plugin_fragments_v2";
 const DATA_PREFIX = "chat_plugin_data_v1:";
@@ -50,8 +53,26 @@ function writeJson(key: string, value: unknown): void {
 // ── 安装表 ────────────────────────────────────────────────
 
 export function loadChatPlugins(): InstalledChatPlugin[] {
-    const list = readJson<InstalledChatPlugin[]>(PLUGINS_KEY, []);
-    if (!Array.isArray(list)) return [];
+    const raw = readJson<InstalledChatPlugin[]>(PLUGINS_KEY, []);
+    const list = Array.isArray(raw) ? raw : [];
+    const builtinRevision = "0.13.1-kakao-classic";
+    const seeded = kvGet(BUILTIN_SEED_KEY);
+    if (typeof window !== "undefined" && isKvHydrated() && seeded !== builtinRevision) {
+        const index = list.findIndex(p => p?.manifest?.id === BUILTIN_KAKAO_PLUGIN_MANIFEST.id);
+        const now = new Date().toISOString();
+        if (index >= 0) {
+            // Refresh this built-in's implementation without changing user settings or enabled state.
+            list[index] = { ...list[index], manifest: BUILTIN_KAKAO_PLUGIN_MANIFEST,
+                code: BUILTIN_KAKAO_PLUGIN_CODE, updatedAt: now };
+            writeJson(PLUGINS_KEY, list);
+        } else if (!seeded) {
+            list.push({ manifest: BUILTIN_KAKAO_PLUGIN_MANIFEST, code: BUILTIN_KAKAO_PLUGIN_CODE,
+                enabled: false, installedAt: now, updatedAt: now, settings: {} });
+            writeJson(PLUGINS_KEY, list);
+        }
+        // An intentionally deleted plugin is not installed again.
+        kvSet(BUILTIN_SEED_KEY, builtinRevision);
+    }
     return list.filter(p =>
         !!p && typeof p === "object"
         && typeof p.manifest?.id === "string"

@@ -483,11 +483,91 @@ function cancelOfflineGenerationRun(sessionId: string): boolean {
 
 // ── Rich media reprocessing on mount ──────────────────────────
 
-// Restored upstream chat timestamp grouping; independent of sidebar and app layout.
-const TIME_GAP = 1 * 60 * 1000;
-function shouldShowTimestamp(currentMsg: string, prevMsg: string | null): boolean {
-    if (!prevMsg) return true;
-    return new Date(currentMsg).getTime() - new Date(prevMsg).getTime() > TIME_GAP;
+function kktCalendarDay(dateStr: string): string {
+    const date = new Date(dateStr);
+    return Number.isNaN(date.getTime()) ? dateStr : `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+function kktCalendarMinute(dateStr: string): string {
+    const date = new Date(dateStr);
+    return Number.isNaN(date.getTime()) ? dateStr : String(Math.floor(date.getTime() / 60_000));
+}
+
+function formatKktChatDate(dateStr: string): string {
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return "";
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    if (day.getTime() === today.getTime()) return "Today";
+    if (day.getTime() === yesterday.getTime()) return "Yesterday";
+    return new Intl.DateTimeFormat("en-US", {
+        weekday: "long", month: "short", day: "numeric", year: "numeric",
+    }).format(date);
+}
+
+function formatKktChatClock(dateStr: string): string {
+    const date = new Date(dateStr);
+    if (Number.isNaN(date.getTime())) return "";
+    const hour = date.getHours();
+    return `${hour % 12 || 12}:${String(date.getMinutes()).padStart(2, "0")} ${hour < 12 ? "AM" : "PM"}`;
+}
+
+function KktDateDivider({ dateTime }: { dateTime: string }) {
+    return (
+        <div className="chat-date-divider-row flex justify-center w-full">
+            <span className="chat-sys-msg chat-kkt-day-divider py-[2px] px-2 rounded select-none">
+                <CalendarDays size={12} aria-hidden="true" />
+                <span>{formatKktChatDate(dateTime)}</span>
+                <ChevronRight size={12} aria-hidden="true" />
+            </span>
+        </div>
+    );
+}
+
+type KktMessageGroup = { key: string; firstId: string; lastId: string };
+
+/** Build display groups without changing message history or generation behavior. */
+function buildKktDisplayGroups(items: ChatMessage[], isGroup: boolean) {
+    const byId = new Map<string, KktMessageGroup>();
+    const groups = new Map<string, KktMessageGroup>();
+    const dateStarts = new Set<string>();
+    let previousDay: string | null = null;
+    let previousUser: { minute: string; key: string } | null = null;
+    for (const message of items) {
+        const day = kktCalendarDay(message.createdAt);
+        if (day !== previousDay) dateStarts.add(message.id);
+        previousDay = day;
+        const role = uiRole(message);
+        if (role !== "user" && role !== "assistant") {
+            previousUser = null;
+            continue; // Centered state/receipt notices have no side clock or unread mark.
+        }
+        // Retracted messages and panel-only records have no visible speech/card edge.
+        if (message.isRetracted || (!message.mediaType &&
+            !getChatFlowVisibleContent(message) &&
+            (message.statusPanel || message.innerMonologue || message.reasoningText))) {
+            previousUser = null;
+            continue;
+        }
+        let key: string;
+        if (role === "user") {
+            const minute = kktCalendarMinute(message.createdAt);
+            key = previousUser?.minute === minute ? previousUser.key : `user:${minute}:${message.id}`;
+            previousUser = { minute, key };
+        } else {
+            previousUser = null;
+            const batch = message.responseBatchId || message.responseRoundId || message.id;
+            key = `assistant:${isGroup ? message.senderCharacterId || message.senderName || "assistant" : "assistant"}:${day}:${batch}`;
+        }
+        const group = groups.get(key) || { key, firstId: message.id, lastId: message.id };
+        group.lastId = message.id;
+        groups.set(key, group);
+        byId.set(message.id, group);
+    }
+    return { byId, dateStarts };
 }
 
 type ChatRoomProps = {
@@ -1183,6 +1263,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
 
     const [liveCSS, setLiveCSS] = useState(session.customCSS || "");
     const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [unreadKktBatches, setUnreadKktBatches] = useState<Set<string>>(() => new Set());
+    const seenKktMessageIdsRef = useRef<Set<string> | null>(null);
     const [transientMessages, setTransientMessages] = useState<ChatMessage[]>([]);
     const [stickerReady, setStickerReady] = useState(false);
     const [character, setCharacter] = useState<Character | null>(() => {
@@ -1871,6 +1953,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
     );
 
     useEffect(() => {
+        setUnreadKktBatches(new Set());
         setUserIdentity(resolveUserIdentity(session.isGroup ? undefined : session.contactId, session.isGroup ? "group_chat" : "chat"));
         setTransientMessages([]);
         setOfflineMode(kvGet(CHAT_OFFLINE_MODE_PREFIX + session.id) === "1");
@@ -1908,6 +1991,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             needsInitialScrollRef.current = true;
             prevMsgCountRef.current = 0;
             visibleMessagesRef.current = msgs;
+            seenKktMessageIdsRef.current = new Set(msgs.map(message => message.id));
             setMessages(msgs);
         });
 
@@ -1959,6 +2043,37 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         return ()=>{initialCancelled=true;};
     }, [session.id]);
 
+    // The small “1” is session display state. A side's unanswered groups stay
+    // marked until a real message from the other side arrives (not on summon).
+    useEffect(() => {
+        if (session.isGroup) return;
+        const seen = seenKktMessageIdsRef.current;
+        if (!seen) {
+            seenKktMessageIdsRef.current = new Set(messages.map(message => message.id));
+            return;
+        }
+        const lastKnownIndex = messages.reduce((index, message, current) => seen.has(message.id) ? current : index, -1);
+        const fresh = messages.filter((message, index) => index > lastKnownIndex && !seen.has(message.id));
+        messages.forEach(message => seen.add(message.id));
+        if (!fresh.length) return;
+        const { byId } = buildKktDisplayGroups(messages.filter(message =>
+            !isHiddenChatFlowMessage(message) && !isCallSysMsg(message)), false);
+        setUnreadKktBatches(previous => {
+            const next = new Set(previous);
+            for (const message of fresh) {
+                const group = byId.get(message.id);
+                if (!group) continue;
+                const otherRole = message.role === "user" ? "assistant:" : "user:";
+                for (const key of next) if (key.startsWith(otherRole)) next.delete(key);
+                next.add(group.key);
+            }
+            return next;
+        });
+    }, [messages, session.isGroup]);
+
+    useEffect(() => () => {
+        seenKktMessageIdsRef.current = null;
+    }, [session.id]);
 
     const needsInitialScrollRef = useRef(true);
     const prevMsgCountRef = useRef(0);
@@ -3855,6 +3970,11 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             const dueAt = pending?.eventId === activeBusy.item.id ? pending.dueAt : chooseBusyResumeAt(activeBusy);
             if (pending || activeBusy.level !== 2) {
                 saveBusyHoldPending({ sessionId: session.id, dueAt, queued: true, eventId: activeBusy.item.id, attempts: pending?.attempts || 0 });
+                if (activeBusy.level === 3) {
+                    const seen = seenKktMessageIdsRef.current;
+                    if (seen) for (const message of latestMessages) if (message.role === "user") seen.add(message.id);
+                    setUnreadKktBatches(previous => new Set([...previous].filter(key => !key.startsWith("user:"))));
+                }
                 setPendingGenerate(false);
                 showChatToast(activeBusy.sleeping&&activeBusy.level>=3?"对方正在休息，醒来后再回复":"对方正在忙碌中");
                 return true;
@@ -5574,6 +5694,29 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         return { groups, memberSet };
     }, [projectedMessages,manualGroups,session.id]);
 
+    // Reuse date and batch grouping in single and group chat. A photo deck has
+    // one visible representative even though its pictures are stored separately.
+    const kktDisplayGroups = useMemo(() => {
+        const visible: ChatMessage[] = [];
+        let previousPhoto: ChatMessage | null = null;
+        projectedMessages.forEach((message, index) => {
+            if (voiceCallGroups.memberSet.has(index) &&
+                !voiceCallGroups.groups.some(group => group.startIdx === index)) return;
+            if (isHiddenChatFlowMessage(message, getMessageDisplayContent(message))) return;
+            const isPhoto = message.mediaType === "image" ||
+                (message.mediaType === "media_file" && message.mediaData?.fileType === "image");
+            const photoKey = isPhoto && (message.mediaData?.photoBatchId ||
+                (message.role === "assistant" ? message.responseBatchId : undefined));
+            const previousPhotoKey = previousPhoto && (previousPhoto.mediaData?.photoBatchId ||
+                (previousPhoto.role === "assistant" ? previousPhoto.responseBatchId : undefined));
+            if (photoKey && previousPhotoKey === photoKey && previousPhoto?.role === message.role &&
+                previousPhoto.senderCharacterId === message.senderCharacterId) return;
+            visible.push(message);
+            previousPhoto = isPhoto ? message : null;
+        });
+        return buildKktDisplayGroups(visible, !!session.isGroup);
+    }, [getMessageDisplayContent, projectedMessages, session.isGroup, voiceCallGroups]);
+
     const getSelectableStoredMessageId = useCallback((msg: RenderChatMessage): string | null => {
         const id = msg.displaySourceId || msg.id;
         if (!id || id.startsWith("vc-") || isTransientMessage(id)) return null;
@@ -6043,11 +6186,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                         const chatCount = groupMessages.filter(m => uiRole(m) !== "system").length;
                         return (
                             <div key={`vc-${vcGroup.startId}`} className="flex flex-col gap-2">
-                                {shouldShowTimestamp(msg.createdAt, projectedMessages[idx - 1]?.createdAt ?? null) && (
-                                    <div className="flex justify-center w-full">
-                                        <span className="chat-sys-msg py-[2px] px-2 rounded select-none">{formatChatUiTime(msg.createdAt)}</span>
-                                    </div>
-                                )}
+                                {kktDisplayGroups.dateStarts.has(msg.id) && <KktDateDivider dateTime={msg.createdAt} />}
                                 <div
                                     onPointerDown={(e) => { e.stopPropagation(); handleMessagePointerDown(e, `vc-${vcGroup.startId}`); }}
                                     onPointerUp={(e) => handleMessagePointerUp(e)}
@@ -6182,18 +6321,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     const renderMsg = msg;
                     const isSystemInstruction = isSystemInstructionMessage(renderMsg);
                     const bubbleDisplayContent = getMessageDisplayContent(renderMsg);
-                    let prevVisibleMsg: RenderChatMessage | null = null;
-                    for (let prevIdx = idx - 1; prevIdx >= 0; prevIdx--) {
-                        if (voiceCallGroups.memberSet.has(prevIdx)) continue;
-                        const candidate = projectedMessages[prevIdx];
-                        if (isHiddenChatFlowMessage(candidate, getMessageDisplayContent(candidate))) continue;
-                        prevVisibleMsg = candidate;
-                        break;
-                    }
-                    const showTime = shouldShowTimestamp(msg.createdAt, prevVisibleMsg?.createdAt ?? null);
-                    const isConsecutive = !!prevVisibleMsg && !showTime
-                        && uiRole(prevVisibleMsg) === uiRole(msg) && uiRole(msg) !== "system"
-                        && (!session.isGroup || prevVisibleMsg.senderCharacterId === msg.senderCharacterId);
+                    const displayGroup = kktDisplayGroups.byId.get(msg.id);
+                    const showDay = kktDisplayGroups.dateStarts.has(msg.id);
+                    const isConsecutive = !!displayGroup && displayGroup.firstId !== msg.id;
                     // Hide bubbles with no visible content (empty text, stripped music tags, etc.)
                     const visibleContent = getChatFlowVisibleContent(renderMsg, bubbleDisplayContent);
                     const isVisualMedia = isChatVisualMedia(renderMsg);
@@ -6206,6 +6336,21 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     const isMediaBubble = (renderMsg.mediaType && CHAT_MEDIA_BUBBLE_TYPES.has(renderMsg.mediaType)) || isStandaloneHtmlPreview;
                     // Empty bubble: no visible content AND no visual media AND no folded panel.
                     const isEmptyBubble = !isVisualMedia && !visibleContent && uiRole(msg) !== "system" && !hasFoldedPanel;
+                    const isBatchEnd = !!displayGroup && displayGroup.lastId === msg.id
+                        && uiRole(msg) !== "system" && !msg.isRetracted
+                        && !hiddenEmpty && !isEmptyBubble && !isSilentThought;
+                    const batchTimeMessage = photoGroup[photoGroup.length - 1];
+                    const batchMeta = isBatchEnd ? (
+                        <div className="chat-kkt-batch-meta" data-role={msg.role}>
+                            {!session.isGroup && displayGroup && unreadKktBatches.has(displayGroup.key) && <span className="chat-kkt-batch-unread">1</span>}
+                            <time dateTime={batchTimeMessage.createdAt}>{formatKktChatClock(batchTimeMessage.createdAt)}</time>
+                        </div>
+                    ) : null;
+                    // A translated text message keeps its clock beside the
+                    // original white bubble; the translation remains below.
+                    const inlineKktMeta = msg.role === "assistant" && (!renderMsg.mediaType || renderMsg.mediaType === "quote")
+                        && batchMeta && splitBilingualText(msg.displayProjected ? renderMsg.content : bubbleDisplayContent)
+                        ? batchMeta : null;
                     const selectableStoredId = getSelectableStoredMessageId(msg);
                     const isMultiSelectable = isMultiSelectMode && !!selectableStoredId && !hiddenEmpty;
                     const isMultiSelected = !!selectableStoredId && selectedMessageIds.has(selectableStoredId);
@@ -6222,14 +6367,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     } : {};
 
                     return (
-                        <div key={msg.id} className="flex flex-col gap-4" {...(hiddenEmpty ? { style: { display: "none" } } : {})} {...(isEmptyBubble && renderMsg.reasoningText && !showTime ? { "data-reasoning-only": "" } : {})}>
-                            {showTime && (
-                                <div className="flex justify-center w-full">
-                                    <span className="chat-sys-msg py-[2px] px-2 rounded select-none">
-                                        {formatChatUiTime(msg.createdAt)}
-                                    </span>
-                                </div>
-                            )}
+                        <div key={msg.id} data-chat-message-batch="" className="flex flex-col gap-4" {...(hiddenEmpty ? { style: { display: "none" } } : {})} {...(isEmptyBubble && renderMsg.reasoningText && !showDay ? { "data-reasoning-only": "" } : {})}>
+                            {showDay && <KktDateDivider dateTime={msg.createdAt} />}
                             {/* 思维链触发条（Claude app 风格）：点击打开底部弹窗 */}
                             {renderMsg.reasoningText && msg.role !== "user" && uiRole(msg) !== "system" && (
                                 <div className="chat-msg-wrapper" data-role={uiRole(msg)} data-reasoning-row="" style={{ marginBottom: -8 }}>
@@ -6399,7 +6538,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                                             ? groupCharMap.get(msg.senderCharacterId) || character
                                                             : character;
                                                         if (targetChar) sendRichMessage("poke", { pokeTarget: targetChar.name });
-                                                    }} className="w-[40px] h-[40px] rounded-[20px] bg-[var(--c-input)] overflow-hidden cursor-pointer">
+                                                    }} className="chat-msg-avatar-image bg-[var(--c-input)] overflow-hidden cursor-pointer">
                                                         {(() => {
                                                             const senderAvatar = senderChar ? resolveChatCharacterAvatar(senderChar) : null;
                                                             return senderAvatar ? (
@@ -6420,11 +6559,19 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                             {...(isStandaloneHtmlPreview ? { "data-html": "true" } : {})}
                                         >
                                             {session.isGroup && (
-                                                <span className="chat-group-sender-name">{msg.role === "user"
+                                                <span className={`chat-group-sender-name${msg.role === "user" ? " chat-self-sender-name" : ""}`}>{msg.role === "user"
                                                     ? groupMemberName(session, "self", null, userIdentity?.name || "我")
                                                     : groupMemberName(session, msg.senderCharacterId || "", msg.senderCharacterId ? groupCharMap.get(msg.senderCharacterId) : null, msg.senderName || "未知成员")}
                                                     {msg.role !== "user" && renderGroupRoleBadge(msg.senderCharacterId)}</span>
                                             )}
+                                            {!session.isGroup && msg.role === "user" && !isConsecutive && (
+                                                <span className="chat-self-sender-name">{quoteUserName}</span>
+                                            )}
+                                            {!session.isGroup && msg.role === "assistant" && !isConsecutive && (
+                                                <span className="chat-kkt-sender-name">{quoteCharacterName}</span>
+                                            )}
+                                            <div className="chat-kkt-bubble-line" data-role={msg.role} data-chat-media-type={renderMsg.mediaType || "text"} {...(batchMeta ? { "data-has-batch-meta": "" } : {})}>
+                                            {msg.role === "user" && batchMeta}
                                             <div
                                             {...(editingMessageId !== msg.id ? {
                                                 onPointerDown: (e: React.PointerEvent) => { e.stopPropagation(); handleMessagePointerDown(e, msg.id); },
@@ -6474,8 +6621,20 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                                 onActionSelect={(text) => chatTextInputRef.current?.appendText(text)}
                                                 onMeetingInviteAction={handleMeetingInviteAction}
                                                 defaultTranslationExpanded={session.collapseBilingualTranslation !== false ? false : true}
+                                                inlineKktMeta={inlineKktMeta}
                                             />
                                         </div>
+                                        {msg.role === "assistant" && !inlineKktMeta && batchMeta}
+                                        </div>
+                                        {renderMsg.mediaType === "audio" && voiceTextIds.has(msg.id) && renderMsg.mediaData?.label && (
+                                    <div className="voice-msg-text-bubble">
+                                        <BilingualTextBlock
+                                            text={msg.displayProjected ? (renderMsg.mediaData?.label || "") : renderDisplayText(renderMsg.mediaData?.label || "", msg.role === "user" ? 1 : 2, false)}
+                                            mode="markdown"
+                                            defaultExpanded={session.collapseBilingualTranslation !== false ? false : true}
+                                        />
+                                    </div>
+                                        )}
                                         </div>}
                                         {msg.role !== "user" && !isSilentThought && !isEmptyBubble && hasFoldedPanel && (
                                             <button
@@ -6506,9 +6665,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                             </span>
                                         )}
                                         {msg.role === "user" && !isEmptyBubble && (
-                                            <div className="chat-msg-avatar w-[40px] h-[40px] rounded-[20px] bg-[var(--c-page-body-bg)] shrink-0 flex items-center justify-center overflow-hidden">
+                                            <div className="chat-msg-avatar chat-self-avatar shrink-0 flex items-center justify-center">
                                                 {effectiveUserAvatar ? (
-                                                    <img src={effectiveUserAvatar} alt="Me" className="w-full h-full object-cover rounded-[20px]" />
+                                                    <img src={effectiveUserAvatar} alt="Me" className="w-full h-full object-cover" />
                                                 ) : (
                                                     <User size={20} color="var(--c-text)" />
                                                 )}
@@ -6521,20 +6680,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             {msg.role === "assistant" && msg.status === "rejected" && (
                                 <div className="chat-msg-rejected-note">消息已发出，但被对方拒收了</div>
                             )}
-                            {/* Voice message: text transcription bubble */}
-                            {renderMsg.mediaType === "audio" && voiceTextIds.has(msg.id) && renderMsg.mediaData?.label && (
-                                <div className={`chat-msg-wrapper`} data-role={uiRole(msg)} style={{ marginTop: -12 }}>
-                                    {msg.role !== "user" && <div className="w-[40px] shrink-0" />}
-                                    <div className="voice-msg-text-bubble">
-                                        <BilingualTextBlock
-                                            text={msg.displayProjected ? (renderMsg.mediaData?.label || "") : renderDisplayText(renderMsg.mediaData?.label || "", msg.role === "user" ? 1 : 2, false)}
-                                            mode="markdown"
-                                            defaultExpanded={session.collapseBilingualTranslation !== false ? false : true}
-                                        />
-                                    </div>
-                                    {msg.role === "user" && <div className="w-[40px] shrink-0" />}
-                                </div>
-                            )}
+
                             {/* 状态栏：一律裸渲染，不套便利贴外框（自定义模式下交给用户的渲染代码，
                                 否则 [状态栏] 原文直接走 markdown/内联 HTML，让 AI 直出的卡片自己当外框）。
                                 状态值跟内心独白走（留在便利贴里）；这轮没有内心独白时便利贴不出现，

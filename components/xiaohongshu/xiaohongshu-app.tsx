@@ -1,4 +1,5 @@
 "use client";
+import {useSnapshotNavigation} from "@/lib/shared-snapshot-navigation";
 import {AppNotificationSetting} from "@/components/social/app-notifications";
 import { useGenerationFeedback } from "@/components/generation-feedback";
 
@@ -734,6 +735,7 @@ export function XiaohongshuApp({ onClose, onNotice: externalNotice, visible = tr
   const [characters, setCharacters] = useState<Character[]>([]);
   const [selectedTab, setSelectedTab] = useState<XiaohongshuTabId>("home");
   const [homeFeedTab, setHomeFeedTab] = useState<XiaohongshuHomeFeedTab>("discover");
+ useSnapshotNavigation('xiaohongshu',target=>{if(state.notes.some(n=>n.id===target.id))setSelectedNoteId(target.id);else onNotice?.('原笔记已删除，已分享的快照仍可查看');});
   useEffect(()=>{const fn=(e:Event)=>{const n=(e as CustomEvent).detail;if(n.app!=='xiaohongshu')return;if(n.targetType==='dm'){setMessagePanel(null);setSelectedTab('messages');setSelectedDmThreadId(n.targetId);}else if(n.targetType==='messages'){setSelectedNoteId(null);setSelectedTab('messages');setSelectedDmThreadId(null);if(n.targetId==='follow')handleOpenMessagePanel('follow');else setMessagePanel(null);}else setSelectedNoteId(n.targetId);};window.addEventListener('social-notification-open',fn);return()=>window.removeEventListener('social-notification-open',fn);},[]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);

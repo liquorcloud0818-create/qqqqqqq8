@@ -13,9 +13,11 @@ export type MusicControlSnapshot = {
 
 export type MusicControlBridge = {
     getState: () => MusicControlSnapshot;
-    playTrack: (track: MusicTrack) => Promise<{ ok: boolean; message: string; track?: MusicTrack }>;
+    playTrack: (track: MusicTrack, options?: {single?:boolean;startAt?:number}) => Promise<{ ok: boolean; message: string; track?: MusicTrack }>;
     playByQuery: (query: string, artist?: string) => Promise<{ ok: boolean; message: string; track?: MusicTrack }>;
     addToQueue: (tracks: MusicTrack[], options?: { replace?: boolean; playFirst?: boolean }) => Promise<{ ok: boolean; message: string; queue: MusicTrack[] }>;
+    setSingleTrackPlayback: () => void;
+    seek: (time: number) => void;
     pause: () => void;
     resume: () => void;
     stop: () => void;

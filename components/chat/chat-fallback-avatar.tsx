@@ -1,6 +1,6 @@
 "use client";
 
-export const CHAT_FALLBACK_AVATAR_SRC = "/images/default-moment-avatar.png";
+export const CHAT_FALLBACK_AVATAR_SRC = "https://imgbed.heliar.top/i/gEbyUFeslapYCQSd_kakao%E9%BB%98%E8%AE%A4.png";
 
 export function ChatFallbackAvatar({ alt = "", className = "" }: { alt?: string; className?: string }) {
     return (

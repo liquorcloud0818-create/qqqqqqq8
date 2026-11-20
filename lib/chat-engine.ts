@@ -1,3 +1,4 @@
+import { MUSIC_SHARE_FORMAT_INSTRUCTION } from "./music-share-format";
 import {inspectionIntentInstruction,extractInspectionIntent,inspectionStreamFilter} from './phone-inspection-settings';
 import {phoneKnowledge,applyPhoneControl,phoneTextStream} from "./checkphone-access";
 import { offlineSpeechInstruction } from "./offline-dialogue";
@@ -2047,6 +2048,7 @@ export async function buildChatPromptMessages(
         offlineSummaryTag: preset?.story_summary_tag?.trim() || "summary",
         nativeToolHistory: usesNativeActions,
     });
+    if (resolvedAppId === "chat") llmMessages.push({role:"system",content:MUSIC_SHARE_FORMAT_INSTRUCTION});
     if (!session.isGroup && (resolvedAppId === "chat" || resolvedAppId === "phone")) {
         llmMessages.push({ role: "system", content: buildCharacterOutputLanguageInstruction(character, session) });
     }

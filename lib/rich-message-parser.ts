@@ -1,3 +1,4 @@
+import { parseMusicShareFields } from "./music-share-format";
 /**
  * Shared rich-media message parser.
  *
@@ -287,7 +288,7 @@ const RICH_PATTERNS: {
             return {
                 content: "",
                 mediaType: "music_share" as const,
-                mediaData: { musicTitle: title, label: title },
+                mediaData: parseMusicShareFields(title),
             };
         },
     },
