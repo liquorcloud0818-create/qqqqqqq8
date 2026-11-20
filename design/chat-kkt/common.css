@@ -1055,7 +1055,8 @@
   pointer-events: none !important;
 }
 
-:root .chat-music-share-artist::before {
+:root .chat-msg-wrapper[data-role="assistant"] .chat-music-share-artist::before,
+:root .chat-msg-wrapper[data-role="user"] .chat-music-share-artist::after {
   content: "PLAYLIST" !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -1072,6 +1073,16 @@
   line-height: 1 !important;
   margin-right: 4px !important;
   vertical-align: middle !important;
+}
+
+/* 标签随发送方向镜像：对方在歌手左侧，我方在歌手右侧。 */
+:root .chat-msg-wrapper[data-role="user"] .chat-music-share-artist::before {
+  content: none !important;
+  display: none !important;
+}
+:root .chat-msg-wrapper[data-role="user"] .chat-music-share-artist::after {
+  margin-left: 4px !important;
+  margin-right: 0 !important;
 }
 
 :root .chat-music-share-card .chat-music-share-footer {
