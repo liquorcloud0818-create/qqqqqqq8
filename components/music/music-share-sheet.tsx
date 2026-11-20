@@ -1,10 +1,13 @@
 "use client";
+import { GroupShareTargets } from "@/components/chat/group-share-targets";
+
 
 import { useMemo, useState } from "react";
 import type { MusicTrack } from "@/lib/music-storage";
 import { loadCharacters } from "@/lib/character-storage";
 import { resolveChatCharacterAvatar, resolveChatCharacterDisplayName } from "@/lib/chat-profile-storage";
 import { createOrGetSession, pushChatMessage } from "@/lib/chat-storage";
+import { resolveChatShareSession } from "@/lib/chat-share-targets";
 import { startListenSession } from "@/lib/together-listening";
 
 export default function MusicShareSheet({ track, onClose, onShared }: {
@@ -37,7 +40,7 @@ export default function MusicShareSheet({ track, onClose, onShared }: {
                         <button className="mp-share-action mp-share-send" onClick={() => {
                             const session = createOrGetSession(char.id);
                             pushChatMessage({ sessionId: session.id, role: "user", content: "", mediaType: "music_share", mediaData: {
-                                musicTitle: track.title, musicArtist: track.artist, musicCoverUrl: track.coverUrl, label: `${track.title} - ${track.artist}`,
+                                musicTrackId: track.id, musicDuration: track.duration, musicLastPosition: 0, musicTitle: track.title, musicArtist: track.artist, musicCoverUrl: track.coverUrl, label: `${track.title} - ${track.artist}`,
                             } });
                             window.dispatchEvent(new CustomEvent("chat-messages-updated", { detail: { sessionId: session.id } }));
                             onClose();
@@ -47,7 +50,7 @@ export default function MusicShareSheet({ track, onClose, onShared }: {
                 })}
                 {visible.length === 0 && <div className="mp-share-empty">{characters.length ? "没有找到角色" : "还没有角色"}</div>}
             </div>
-            <p className="mp-share-hint">分享会发送音乐卡片 · 一起听会直接进入双人播放</p>
+            <GroupShareTargets actionLabel="分享" onSelect={id=>{const session=resolveChatShareSession(id);pushChatMessage({sessionId:session.id,role:"user",content:"",mediaType:"music_share",mediaData:{musicTrackId:track.id,musicDuration:track.duration,musicLastPosition:0,musicTitle:track.title,musicArtist:track.artist,musicCoverUrl:track.coverUrl}});window.dispatchEvent(new CustomEvent("chat-messages-updated",{detail:{sessionId:session.id}}));onClose();onShared(session.groupName||"群聊");}}/><p className="mp-share-hint">分享会发送音乐卡片 · 一起听会直接进入双人播放</p>
         </section>
     </div>;
 }

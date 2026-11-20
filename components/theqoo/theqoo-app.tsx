@@ -1,4 +1,5 @@
 "use client";
+import {useSnapshotNavigation} from "@/lib/shared-snapshot-navigation";
 import {syncBilingualEdit} from "@/lib/bilingual-edit";
 import { useGenerationFeedback } from "@/components/generation-feedback";
 
@@ -99,6 +100,7 @@ export function TheqooApp({ onClose, onNotice: externalNotice, visible = true, o
       setPage("detail");
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+ useSnapshotNavigation('theqoo',target=>{if(state.posts.some(p=>p.id===target.id)){setPostId(target.id);setPreviousPage('home');setPage('detail');}else onNotice?.('原帖已删除，已分享的快照仍可查看');});
 
   const selected = state.posts.find(p => p.id === postId) || null;
   const zh = state.uiLanguage === "zh";

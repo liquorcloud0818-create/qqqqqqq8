@@ -28,6 +28,7 @@ const defaults: Required<ModalVars> = {
 
 type Props = {
   target: string;
+  includeChatBuiltins?: boolean;
   onLoad: (css: string) => void;
   currentCSS: string;
   btnStyle?: React.CSSProperties;
@@ -43,7 +44,7 @@ const defaultBtn: React.CSSProperties = {
   cursor: "pointer", flexShrink: 0, padding: 0,
 };
 
-export default function CSSSchemeBar({ target, onLoad, currentCSS, btnStyle, modalVars }: Props) {
+export default function CSSSchemeBar({ target, onLoad, currentCSS, btnStyle, modalVars, includeChatBuiltins = false }: Props) {
   const v = { ...defaults, ...modalVars };
   const [schemes, setSchemes] = useState<CSSScheme[]>([]);
   const [modal, setModal] = useState<"save" | "load" | null>(null);
@@ -51,7 +52,7 @@ export default function CSSSchemeBar({ target, onLoad, currentCSS, btnStyle, mod
   const inputRef = useRef<HTMLInputElement>(null);
   const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
 
-  useEffect(() => { setSchemes(getSchemes(target)); }, [target]);
+  useEffect(() => { setSchemes(getSchemes(target, includeChatBuiltins)); }, [target, includeChatBuiltins]);
   useEffect(() => { if (modal === "save") setTimeout(() => inputRef.current?.focus(), 50); }, [modal]);
   useEffect(() => {
     setPortalTarget(document.querySelector<HTMLElement>(".phone-shell"));
@@ -91,7 +92,7 @@ export default function CSSSchemeBar({ target, onLoad, currentCSS, btnStyle, mod
         <Save size={15} />
       </button>
       <button
-        onClick={() => { setSchemes(getSchemes(target)); setModal("load"); }}
+        onClick={() => { setSchemes(getSchemes(target, includeChatBuiltins)); setModal("load"); }}
         title="加载方案"
         style={btn}
       >
@@ -182,7 +183,7 @@ export default function CSSSchemeBar({ target, onLoad, currentCSS, btnStyle, mod
                         <span style={{ flex: 1, fontSize: "calc(14px*var(--app-text-scale,1))", color: v.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {s.name}
                         </span>
-                        <button
+                        {s.builtIn ? <small style={{ color: v.textDim, flexShrink: 0 }}>内置</small> : <button
                           aria-label={`删除方案 ${s.name}`}
                           title="删除方案"
                           onClick={e => { e.stopPropagation(); setConfirmingId(confirmingId === s.id ? null : s.id); }}
@@ -194,7 +195,7 @@ export default function CSSSchemeBar({ target, onLoad, currentCSS, btnStyle, mod
                           }}
                         >
                           <Trash2 size={14} />
-                        </button>
+                        </button>}
                       </div>
                       {confirmingId === s.id && (
                         <div style={{ display: "flex", flexShrink: 0, borderTop: `1px solid ${v.border}` }}>

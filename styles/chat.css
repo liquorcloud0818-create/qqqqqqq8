@@ -3168,10 +3168,10 @@
   padding: 8px 12px;
   border-radius: 8px;
   background: var(--c-input);
-  font-size: calc(13.5px*var(--app-text-scale,1));
-  line-height: 1.5;
+  font-size: calc(15px*var(--app-text-scale,1));
+  line-height: 1.6;
   color: var(--c-text);
-  max-width: 70%;
+  max-width: 100%;
   word-break: break-word;
 }
 .voice-msg-text-bubble .chat-bilingual-block {
@@ -7949,8 +7949,9 @@
 .chat-app .kkt-own-avatar,
 .chat-app .kkt-update-avatar,
 .chat-app .kkt-list-page .minimal-avatar-wrapper,
-/* The message-room avatars are deliberately excluded: user CSS owns their shape. */
-.chat-app :is(.chat-contact-avatar, .chat-offline-avatar, .add-friend-avatar, .freq-avatar, .freq-detail-avatar, .chat-contact-card-avatar, [data-chat-avatar]:not(.chat-msg-avatar):not(.chat-room-layer [data-chat-avatar])),
+.chat-app :is(.chat-contact-avatar, .chat-offline-avatar, .add-friend-avatar, .freq-avatar, .freq-detail-avatar, .chat-contact-card-avatar, [data-chat-avatar]),
+.chat-app .chat-msg-avatar:has(> img),
+.chat-app .chat-msg-avatar > div:has(> img),
 .voicecall-cards .chat-call-card-avatar,
 .chat-app .kkt-group-avatar {
   -webkit-mask-image: var(--kkt-avatar-mask);
@@ -7969,6 +7970,24 @@
 .chat-app .kkt-update-avatar img { border-radius: 0 !important; }
 .chat-app .kkt-list-page .minimal-avatar-wrapper > img,
 .chat-app .kkt-list-page .minimal-avatar-wrapper .rounded-full { border-radius: 0 !important; }
+
+/* Message avatars follow the existing 42px contact/session-list outline.
+   Other locations keep their original widths/heights; room CSS can override these. */
+.chat-msg-wrapper .chat-msg-avatar {width:42px;height:42px;flex:none;}
+.chat-msg-avatar-image {width:100%;height:100%;}
+.chat-msg-avatar:has(> img), .chat-msg-avatar-image {border-radius:var(--kkt-avatar-radius,26%);overflow:hidden;}
+.chat-msg-avatar-image, .chat-self-avatar {mask-image:var(--kkt-avatar-mask);-webkit-mask-image:var(--kkt-avatar-mask);mask-size:100% 100%;-webkit-mask-size:100% 100%;mask-repeat:no-repeat;-webkit-mask-repeat:no-repeat;}
+.chat-self-avatar {background:var(--c-page-body-bg);}
+.chat-kkt-bubble-line[data-chat-media-type="audio"] {display:block;width:fit-content;max-width:100%;min-width:0;position:relative;align-self:flex-start;}
+.chat-kkt-bubble-line[data-chat-media-type="audio"][data-role="user"] {align-self:flex-end;}
+.chat-kkt-bubble-line[data-chat-media-type="audio"] > [data-ui] {width:fit-content;max-width:100%;}
+.chat-date-divider-row {flex:none;min-height:max-content;margin-bottom:8px;}
+.chat-self-sender-name:not(.chat-group-sender-name) {display:none;text-align:right;font-size:12px;color:var(--c-icon);margin-bottom:4px;}
+.chat-msg-content-wrap > .voice-msg-text-bubble {align-self:flex-start;max-width:100%;margin-top:var(--chat-voice-text-gap,4px);}
+.chat-msg-wrapper[data-role="user"] .chat-msg-content-wrap > .voice-msg-text-bubble {align-self:flex-end;}
+.chat-single-emoji {display:block;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;font-size:48px;line-height:1.15;background:transparent;}
+.chat-msg-wrapper [data-ui^="bubble-"]:has(> .chat-single-emoji) {background:transparent;border:0;box-shadow:none;padding:0;}
+.chat-msg-wrapper [data-ui^="bubble-"]:has(> .chat-single-emoji)::before {content:none;}
 
 /* 围观群导演指令：输入内容只作为下一轮隐藏引导，不写进群聊。 */
 .chat-director-mode-strip {

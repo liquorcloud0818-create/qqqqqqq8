@@ -40,7 +40,7 @@ type Props = {
     onFeaturePhoto?: (postId: string, url: string) => void;
 };
 
-const DEFAULT_MOMENT_AVATAR_SRC = "/images/default-moment-avatar.png";
+import { CHAT_FALLBACK_AVATAR_SRC as DEFAULT_MOMENT_AVATAR_SRC } from "./chat-fallback-avatar";
 
 function MomentDefaultAvatar({ alt = "" }: { alt?: string }) {
     return <img src={DEFAULT_MOMENT_AVATAR_SRC} alt={alt} className="feed-default-avatar w-full h-full object-cover" />;

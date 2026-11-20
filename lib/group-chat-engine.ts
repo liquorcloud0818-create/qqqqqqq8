@@ -1,3 +1,4 @@
+import { MUSIC_SHARE_FORMAT_INSTRUCTION } from "./music-share-format";
 import { offlineSpeechInstruction } from "./offline-dialogue";
 import { loadChatOfflineSceneState } from "./chat-offline-storage";
 import { activeOfflineContext } from "./chat-offline-context";
@@ -506,6 +507,7 @@ async function buildGroupChatPromptMessages(
         offlineSummaryTag: preset?.story_summary_tag?.trim() || "summary",
         nativeToolHistory: usesNativeActions,
     });
+    if (!promptProfile && activeAppTags.includes("group_chat")) llmMessages.push({role:"system",content:MUSIC_SHARE_FORMAT_INSTRUCTION});
     if (promptProfile?.output === "plain_text") {
         llmMessages.push({
             role: "system",

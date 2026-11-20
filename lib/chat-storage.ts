@@ -262,8 +262,14 @@ export type ChatMessage = {
         blacklistEvent?: "block" | "unblock"; // 仿真拉黑系统事件类型（私聊：用户拉黑/解除拉黑角色）
         blacklistCharacterName?: string; // 拉黑事件发生时的角色名（用于事件详情与上下文）
         blacklistUserName?: string;      // 拉黑事件发生时的用户名（用于事件详情与上下文）
+        receiptAnimationPlayed?: boolean;
+        musicTrackId?: string;
+        musicDuration?: number;
+        musicLastPosition?: number;
         musicTitle?: string;      // 音乐标题
         musicArtist?: string;     // 音乐歌手
+        xiaohongshuNoteId?: string;
+        xiaohongshuComments?: import("./xiaohongshu-types").XiaohongshuComment[];
         musicCoverUrl?: string;   // 分享时歌曲在 Music App 中的封面
         xiaohongshuAuthor?: string;       // 小红书分享作者
         xiaohongshuTitle?: string;        // 小红书分享标题
@@ -313,7 +319,9 @@ export type ChatMessage = {
         appName?: string;
         appCardTitle?: string;
         twitterPostSnapshot?:import("./twitter-storage").TwitterSnapshot;
-        cityDiarySnapshot?: {title:string;text:string;handle:string;photos?:string[]};
+        cityDiarySnapshot?: {id?:string;createdAt?:string;translation?:string;title:string;text:string;handle:string;photos?:string[];photoDescriptions?:string[]};
+        novelChapterSnapshot?: import("./shared-snapshot").NovelChapterSnapshot;
+        weverseReplaySnapshot?: import("./shared-snapshot").WeverseReplaySnapshot;
         appCardBody?: string;
         appCardSummary?: string;
         appCardTone?: string;
@@ -1568,6 +1576,9 @@ export function pushChatMessage(msg: Omit<ChatMessage, "id" | "createdAt" | "sta
     // Auto update session last message only for records that can produce a list preview.
     // 优化：直接增量更新内存会话缓存并异步写单条，避免每次发送都走 loadChatSessions +
     // saveChatSessions 触发全量会话预览重算（会话/消息多了以后会明显卡顿）。
+    if (newMsg.mediaType === "music_share" && !newMsg.mediaData?.musicTrackId) {
+        void import("./music-card-data").then(module => module.bindMusicCard(newMsg));
+    }
     const preview = getChatMessagePreview(newMsg);
     const sessIdx = _sessionsCache.findIndex(s => s.id === msg.sessionId);
     if (sessIdx !== -1 && isSessionPreviewCandidate(newMsg)) {
@@ -2236,6 +2247,17 @@ export function updateMessageMediaStatus(messageId: string, newStatus: "pending"
     if (idx !== -1) {
         _messagesCache[idx] = { ..._messagesCache[idx], mediaData: { ..._messagesCache[idx].mediaData, status: newStatus } };
         dbPutMessage(_messagesCache[idx]);
+    }
+}
+
+/** Persist the last valid position on each fixed-song message, including unmounted cards. */
+export function syncSharedMusicPosition(trackId: string, position: number, duration: number) {
+    if (!trackId || !Number.isFinite(position) || position < 0) return;
+    for (const message of _messagesCache) {
+        if (message.mediaType !== "music_share" || message.mediaData?.musicTrackId !== trackId) continue;
+        message.mediaData = { ...message.mediaData, musicLastPosition: position,
+            ...(Number.isFinite(duration) && duration > 0 ? { musicDuration: duration } : {}) };
+        dbPutMessage(message);
     }
 }
 

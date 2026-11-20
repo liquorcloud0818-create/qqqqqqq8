@@ -1,4 +1,10 @@
 "use client";
+import { isSingleEmoji, voiceBubbleWidth } from "@/lib/chat-presentation";
+import { CHAT_PAYMENT_LABELS as PAY_UI } from "@/lib/chat-payment-labels";
+import { MusicShareCard } from "./music-share-card";
+import { SharedAppCard } from "./shared-app-card";
+import { WeverseReplayCard } from "./weverse-replay-card";
+import { sharedApp } from "@/lib/shared-snapshot";
 import { primeSpeechAudioElement, speechPlaybackError } from "@/lib/tts-service";
 import {TwitterFrozenCard,TwitterSnapshotWindow} from "@/components/twitter/twitter-sharing";
 import { WeverseLiveInviteCard } from "./weverse-live-invite-card";
@@ -8,16 +14,17 @@ import {ReversePhoneRecord} from "./reverse-phone-overlay";
 import { ForwardedChatBubble } from "./forwarded-chat-record";
 import { chatContactDisplayName, chatPokeDisplayName } from "@/lib/communication-display-name";
 
-import { useState, useEffect, useCallback, useRef, useMemo, memo, type ReactNode, type PointerEvent as ReactPointerEvent } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo, type ReactNode, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { findCustomStickerByName, resolveCustomStickerUrl } from "@/lib/custom-sticker-storage";
 import { isMediaStoreRef, loadMediaObjectUrl } from "@/lib/media-cache-storage";
 import { getChatImageFromIndexedDB } from "@/lib/chat-asset-storage";
 import { TheqooSnapshotWindow } from "@/components/theqoo/theqoo-snapshot";
-import { ChatMessage, createOrGetSession, loadChatAppSettings, resolveMeetingInviteCardConfig, updateMessageMediaStatus, updateMessageMediaData } from "@/lib/chat-storage";
+import { ChatMessage, loadChatMessages, createOrGetSession, loadChatAppSettings, resolveMeetingInviteCardConfig, updateMessageMediaStatus, updateMessageMediaData } from "@/lib/chat-storage";
 import { resolveChatCharacterDisplayName } from "@/lib/chat-profile-storage";
 import { resolveContactCard } from "@/lib/contact-card";
 import { loadCharacters } from "@/lib/character-storage";
 import { CHAT_OPEN_SESSION_EVENT, dispatchOpenAddContact } from "@/lib/chat-notification-events";
+import { ChatFallbackAvatar } from "./chat-fallback-avatar";
 import { ContactCardGenerateFlow } from "@/components/chat/contact-card-generate-flow";
 import { MediaPreviewOverlay } from "@/components/chat/media-preview-overlay";
 import { findStickerByName } from "@/lib/sticker-data";
@@ -62,6 +69,7 @@ interface MessageBubbleProps {
     onMeetingInviteAction?: (msg: ChatMessage, action: "accept" | "decline") => void;
     displayContent?: string;
     defaultTranslationExpanded?: boolean;
+    inlineKktMeta?: ReactNode;
 }
 
 /** 聊天插件自定义消息气泡：把裸 DOM 容器交给注册了该 kind 的插件渲染 */
@@ -105,7 +113,7 @@ function PluginKindBubble({ msg, kind }: { msg: ChatMessage; kind: string }) {
  * Renders a message bubble based on its mediaType.
  * Falls back to ReactMarkdown for plain text messages.
  */
-export const MessageBubble = memo(function MessageBubble({ msg, photoGroup, onUpdate, charName, userName, quoteCharacterName, quoteUserName, isGroup = false, onSystemMessage, groupSize, onShowDetail, characterId, onMusicPlay, onActionSelect, onMeetingInviteAction, displayContent, defaultTranslationExpanded = false }: MessageBubbleProps) {
+export const MessageBubble = memo(function MessageBubble({ msg, photoGroup, onUpdate, charName, userName, quoteCharacterName, quoteUserName, isGroup = false, onSystemMessage, groupSize, onShowDetail, characterId, onMusicPlay, onActionSelect, onMeetingInviteAction, displayContent, defaultTranslationExpanded = false, inlineKktMeta }: MessageBubbleProps) {
     if (msg.mediaData?.liveVideoId || msg.mediaData?.socialMedia) return <LivePhotoBubble msg={msg} />;
     if (photoGroup && photoGroup.length > 1) return <ChatPhotoDeck messages={photoGroup} onUpdate={onUpdate} characterId={characterId} />;
     switch (msg.mediaType) {
@@ -136,7 +144,7 @@ export const MessageBubble = memo(function MessageBubble({ msg, photoGroup, onUp
             return <DiceBubble msg={msg} />;
         case "quote": {
             const explicitQuotedName = msg.mediaData?.quoteSenderName?.trim();
-            const quotedSenderName = explicitQuotedName
+            const quotedSenderName = (isGroup ? explicitQuotedName : undefined)
                 || (msg.mediaData?.quoteRole === "user"
                     ? (quoteUserName || userName)
                     : msg.mediaData?.quoteRole === "assistant"
@@ -144,26 +152,30 @@ export const MessageBubble = memo(function MessageBubble({ msg, photoGroup, onUp
                         : isGroup
                             ? undefined
                             : (msg.role === "assistant" ? (quoteUserName || userName) : (quoteCharacterName || charName)));
-            return <QuoteBubble msg={msg} quotedSenderName={quotedSenderName} displayContent={displayContent} defaultTranslationExpanded={defaultTranslationExpanded} />;
+            return <QuoteBubble msg={msg} quotedSenderName={quotedSenderName} displayContent={displayContent} defaultTranslationExpanded={defaultTranslationExpanded} inlineKktMeta={inlineKktMeta} />;
         }
         case "music_share":
-            return <MusicShareBubble msg={msg} onPlay={onMusicPlay} />;
+            return <MusicShareCard msg={msg} />;
         case "media_file":
             return <MediaFileBubble msg={msg} onUpdate={onUpdate} characterId={characterId} />;
         case "weverse_live_invite":
             return <WeverseLiveInviteCard message={msg} />;
         case "xiaohongshu_note_share":
-            return <XiaohongshuShareBubble msg={msg} />;
+            return <SharedAppCard message={msg} />;
         case "meeting_invite":
             return <MeetingInviteBubble msg={msg} charName={charName} onAction={onMeetingInviteAction} />;
         case "audio":
             return <VoiceMessageBubble msg={msg} characterId={characterId} onUpdate={onUpdate} defaultTranslationExpanded={defaultTranslationExpanded} />;
         default: {
+            const plainText = displayContent ?? msg.content;
+            if (!msg.mediaType && isSingleEmoji(plainText)) {
+                return <span className="chat-single-emoji" role="img" aria-label={plainText.trim()}>{plainText.trim()}</span>;
+            }
             // 聊天插件自定义消息类型：mediaType = "plugin:<kind>"，由注册插件渲染
             if (msg.mediaType?.startsWith("plugin:")) {
                 return <PluginKindBubble msg={msg} kind={msg.mediaType.slice("plugin:".length)} />;
             }
-            const textBubble = <TextBubble content={displayContent ?? msg.content} onActionSelect={onActionSelect} defaultTranslationExpanded={defaultTranslationExpanded} />;
+            const textBubble = <TextBubble content={displayContent ?? msg.content} onActionSelect={onActionSelect} defaultTranslationExpanded={defaultTranslationExpanded} inlineKktMeta={inlineKktMeta} />;
             return (
                 <>
                     {textBubble}
@@ -203,6 +215,7 @@ export const MessageBubble = memo(function MessageBubble({ msg, photoGroup, onUp
     if (prev.characterId !== next.characterId) return false;
     if (prev.displayContent !== next.displayContent) return false;
     if (prev.defaultTranslationExpanded !== next.defaultTranslationExpanded) return false;
+    if (prev.inlineKktMeta !== next.inlineKktMeta) return false;
     return true;
 });
 
@@ -693,6 +706,7 @@ export const BilingualTextBlock = memo(function BilingualTextBlock({
     className,
     defaultExpanded = false,
     htmlFrameVariant,
+    inlineKktMeta,
     originalLeading,
 }: {
     text: string;
@@ -702,6 +716,7 @@ export const BilingualTextBlock = memo(function BilingualTextBlock({
     className?: string;
     defaultExpanded?: boolean;
     htmlFrameVariant?: ChatHtmlFrameVariant;
+    inlineKktMeta?: ReactNode;
     originalLeading?: ReactNode;
 }) {
     const toggleStarted = useRef(0);
@@ -725,9 +740,18 @@ export const BilingualTextBlock = memo(function BilingualTextBlock({
 
     return (
         <div className={`chat-bilingual-block ${className ?? ""}`.trim()} role="button" tabIndex={0} aria-expanded={expanded} aria-label="切换中文翻译" onPointerDown={()=>{toggleStarted.current=Date.now();}} onKeyDown={e=>{if(e.target===e.currentTarget&&(e.key==="Enter"||e.key===" ")){e.preventDefault();setExpanded(v=>!v);}}} onClick={e=>{if(toggleStarted.current&&Date.now()-toggleStarted.current>500)return;const interactive=(e.target as HTMLElement).closest('a,button,input,textarea,select,[contenteditable="true"]');if(interactive&&e.currentTarget.contains(interactive)||window.getSelection()?.toString())return;e.stopPropagation();setExpanded(v=>!v);}}>
-            <div className="chat-bilingual-section" style={originalLeading?{display:"flex",alignItems:"center",gap:6}:undefined}>{originalLeading}
-                {renderContent(bilingual.original, "chat-bilingual-content")}
-            </div>
+            {inlineKktMeta ? (
+                <div className="chat-kkt-original-row">
+                    <div className="chat-bilingual-section" style={originalLeading?{display:"flex",alignItems:"center",gap:6}:undefined}>{originalLeading}
+                        {renderContent(bilingual.original, "chat-bilingual-content")}
+                    </div>
+                    {inlineKktMeta}
+                </div>
+            ) : (
+                <div className="chat-bilingual-section" style={originalLeading?{display:"flex",alignItems:"center",gap:6}:undefined}>{originalLeading}
+                    {renderContent(bilingual.original, "chat-bilingual-content")}
+                </div>
+            )}
             {expanded && (
                 <>
                     <div className="chat-bilingual-divider" />
@@ -740,8 +764,13 @@ export const BilingualTextBlock = memo(function BilingualTextBlock({
     );
 });
 
-function TextBubble({ content, onActionSelect, defaultTranslationExpanded = false }: { content: string; onActionSelect?: (text: string) => void; defaultTranslationExpanded?: boolean }) {
-    return <BilingualTextBlock text={content} onActionSelect={onActionSelect} mode="markdown" defaultExpanded={defaultTranslationExpanded} />;
+function TextBubble({ content, onActionSelect, defaultTranslationExpanded = false, inlineKktMeta }: { content: string; onActionSelect?: (text: string) => void; defaultTranslationExpanded?: boolean; inlineKktMeta?: ReactNode }) {
+    return <BilingualTextBlock text={content} onActionSelect={onActionSelect} mode="markdown" defaultExpanded={defaultTranslationExpanded} inlineKktMeta={inlineKktMeta} />;
+}
+
+function PaymentNote({text}:{text:string}) {
+ const bilingual=splitBilingualText(text);
+ return bilingual?<span className="chat-payment-note"><span>{bilingual.original}</span><span className="chat-payment-note-translation">{bilingual.translated}</span></span>:<>{text}</>;
 }
 
 // ── Red Packet ─────────────────────────────
@@ -765,6 +794,7 @@ function RedPacketBubble({ msg, charName, userName, groupSize, onShowDetail }: {
 
     return (
         <div
+            data-payment-resolved={isDone ? "true" : "false"}
             className={`chat-red-packet-card w-[240px] rounded-xl overflow-hidden cursor-pointer ${!isDone ? "red-packet-pulse" : ""}`}
             onClick={() => onShowDetail?.(msg)}
         >
@@ -772,18 +802,18 @@ function RedPacketBubble({ msg, charName, userName, groupSize, onShowDetail }: {
                 <div className="ts-32 shrink-0">🧧</div>
                 <div className="flex-1 min-w-0">
                     <div className="text-white ts-15 font-medium">
-                        {d?.label || "恭喜发财，大吉大利"}
+                        {<PaymentNote text={d?.label || "恭喜发财，大吉大利"}/>}
                     </div>
                     {userShare != null && (
                         <div className="ts-20 font-bold mt-1 ui-text-white-85">{formatCurrencyAmount(userShare, walletCurrency(d?.currency))}</div>
                     )}
-                    {isDeclined && <div className="ts-12 mt-1 ui-text-white-70">已退回</div>}
+                    {isDeclined && <div className="ts-12 mt-1 ui-text-white-70">{PAY_UI.returned}</div>}
                 </div>
             </div>
             <div className="ui-media-footer px-4 py-1.5 ts-11" {...(isDeclined ? { "data-status": "declined" } : {})}>
                 <span>微信红包</span>
                 {totalRecipients > 1 && claimedBy.length > 0 && (
-                    <span className="ml-1 opacity-70">· {claimedBy.length}/{totalRecipients}已领取</span>
+                    <span className="ml-1 opacity-70">· {claimedBy.length}/{totalRecipients} {PAY_UI.claimed}</span>
                 )}
             </div>
         </div>
@@ -806,6 +836,7 @@ function TransferBubble({ msg, charName, userName, onShowDetail }: {
 
     return (
         <div
+            data-payment-resolved={isReceived || isDeclined ? "true" : "false"}
             className="chat-transfer-card w-[240px] rounded-xl overflow-hidden cursor-pointer"
             onClick={() => onShowDetail?.(msg)}
         >
@@ -813,7 +844,7 @@ function TransferBubble({ msg, charName, userName, onShowDetail }: {
                 <div className="ts-28 shrink-0">💰</div>
                 <div className="flex-1">
                     <div className="text-white ts-24 font-bold">{formatCurrencyAmount(d?.amount ?? 0, walletCurrency(d?.currency))}</div>
-                    <div className="ts-13 mt-0.5 ui-text-white-85">{d?.label || "转账"}</div>
+                    <div className="ts-13 mt-0.5 ui-text-white-85">{<PaymentNote text={d?.label || "转账"}/>}</div>
                 </div>
             </div>
             {d?.recipientName && (
@@ -824,8 +855,8 @@ function TransferBubble({ msg, charName, userName, onShowDetail }: {
                 {...(isDeclined ? { "data-status": "declined" } : {})}
             >
                 <span>微信转账</span>
-                {isReceived && <span>已收款</span>}
-                {isDeclined && <span>已退回</span>}
+                {isReceived && <span>{PAY_UI.transferReceived}</span>}
+                {isDeclined && <span>{PAY_UI.returned}</span>}
             </div>
         </div>
     );
@@ -846,10 +877,11 @@ function PaymentRequestBubble({ msg, charName, userName, onShowDetail }: {
     const itemsText = d?.paymentRequestItemsText || (d?.paymentRequestItems || [])
         .map(item => `${item.title}/${item.detail}/${item.priceLabel}/${item.quantityLabel}`)
         .join("; ");
-    const statusText = isPaid ? "已代付" : isDeclined ? "已拒绝" : "待代付";
+    const statusText = isPaid ? PAY_UI.paid : isDeclined ? PAY_UI.rejected : PAY_UI.waitingPayment;
 
     return (
         <div
+            data-payment-resolved={isPaid || isDeclined ? "true" : "false"}
             className="chat-payment-request-card w-[248px] rounded-xl overflow-hidden cursor-pointer"
             onClick={() => onShowDetail?.(msg)}
         >
@@ -879,6 +911,8 @@ function PaymentRequestBubble({ msg, charName, userName, onShowDetail }: {
 function AppCardBubble({ msg, characterId, characterName }: { msg: ChatMessage; characterId?: string; characterName?: string }) {
     const [snapshotOpen, setSnapshotOpen] = useState(false);
     const d = msg.mediaData;
+    if (d?.weverseReplaySnapshot) return <WeverseReplayCard message={msg} />;
+    if (sharedApp(msg)) return <SharedAppCard message={msg} />;
     const appName = d?.appName || "APP";
     const layout = normalizeAppCardLayout(d?.appCardLayout);
     const title = layout.title || d?.appCardTitle || d?.label || appName;
@@ -891,7 +925,7 @@ function AppCardBubble({ msg, characterId, characterName }: { msg: ChatMessage; 
     const style = {
         ...(layout.accentColor ? { "--chat-app-card-accent": layout.accentColor } : {}),
         ...(layout.background ? { "--chat-app-card-bg": layout.background } : {}),
-    } as React.CSSProperties;
+    } as CSSProperties;
     const openApp = () => {
         if (cardOpenDisabled) return;
         if (d?.theqooSnapshot || d?.cityDiarySnapshot || d?.twitterPostSnapshot) { setSnapshotOpen(true); return; }
@@ -925,7 +959,7 @@ function AppCardBubble({ msg, characterId, characterName }: { msg: ChatMessage; 
     if (d?.questionBoxSnapshot) {
         const { question, answer } = d.questionBoxSnapshot;
         return (
-            <article className="chat-app-card chat-question-box-card" data-disabled style={{ "--chat-app-card-accent": "#8066b0" } as React.CSSProperties}>
+            <article className="chat-app-card chat-question-box-card" data-disabled style={{ "--chat-app-card-accent": "#8066b0" } as CSSProperties}>
                 <div className="chat-app-card-head"><span className="chat-app-card-name">提问箱</span></div>
                 <div className="chat-app-card-title">匿名提问</div>
                 <div className="chat-app-card-body">{question}</div>
@@ -1173,7 +1207,7 @@ function ContactCardBubble({ msg, characterId }: { msg: ChatMessage; characterId
                     <div className="chat-contact-card-avatar">
                         {resolved.character?.avatar
                             ? <img src={resolved.character.avatar} alt="" />
-                            : <CharAvatarFallbackInline name={contactName} />}
+                            : <ChatFallbackAvatar />}
                     </div>
                     <div className="chat-contact-card-info">
                         <div className="chat-contact-card-name">{resolved.character ? resolveChatCharacterDisplayName(resolved.character) : contactName || "联系人"}</div>
@@ -1203,18 +1237,12 @@ function ContactCardBubble({ msg, characterId }: { msg: ChatMessage; characterId
     );
 }
 
-/** 无头像时的首字占位（名片专用，避免依赖其它气泡的 fallback 组件） */
-function CharAvatarFallbackInline({ name }: { name: string }) {
-    return (
-        <div className="chat-contact-card-avatar-fallback">
-            {(name || "?").slice(0, 1)}
-        </div>
-    );
-}
-
 // ── Gift ─────────────────────────────
 
 function GiftBubble({ msg }: { msg: ChatMessage }) {
+    const receiptRef=useRef<HTMLDivElement>(null);
+    const [receiptArt,setReceiptArt]=useState(false);
+    useEffect(()=>{const sync=()=>{if(receiptRef.current)setReceiptArt(Boolean(getComputedStyle(receiptRef.current).getPropertyValue('--ii-receipt-paper').trim()));};sync();window.addEventListener('chat-session-css-updated',sync);return()=>window.removeEventListener('chat-session-css-updated',sync);},[msg.id]);
     const d = msg.mediaData;
     const isFood = d?.label === "外卖卡";
     const isShoppingDelivery = Boolean(d?.shoppingGiftId || d?.shoppingOrderId || d?.takeoutOrderId);
@@ -1237,6 +1265,7 @@ function GiftBubble({ msg }: { msg: ChatMessage }) {
 
     return (
         <div
+            ref={receiptRef} data-receipt-static="true" data-receipt-art={receiptArt?"true":"false"}
             className={`chat-gift-card ${isFood ? "chat-gift-card--food" : "chat-gift-card--gift"} w-[248px] rounded-none`}
         >
             <div
@@ -1697,7 +1726,7 @@ function DiceBubble({ msg }: { msg: ChatMessage }) {
                 <div
                     className="dice-bubble3d-cube"
                     {...(rollingRef.current ? { "data-rolling": "" } : {})}
-                    style={{ "--dice-rx": `${rx}deg`, "--dice-ry": `${ry}deg` } as React.CSSProperties}
+                    style={{ "--dice-rx": `${rx}deg`, "--dice-ry": `${ry}deg` } as CSSProperties}
                 >
                     {[1, 2, 3, 4, 5, 6].map(f => (
                         <span key={f} className="dice-bubble3d-face" data-face={f}>
@@ -1811,7 +1840,7 @@ function StickerBubble({ msg, characterId }: { msg: ChatMessage; characterId?: s
 
 // ── Quote ─────────────────────────────
 
-function QuoteBubble({ msg, quotedSenderName, displayContent, defaultTranslationExpanded = false }: { msg: ChatMessage; quotedSenderName?: string; displayContent?: string; defaultTranslationExpanded?: boolean }) {
+function QuoteBubble({ msg, quotedSenderName, displayContent, defaultTranslationExpanded = false, inlineKktMeta }: { msg: ChatMessage; quotedSenderName?: string; displayContent?: string; defaultTranslationExpanded?: boolean; inlineKktMeta?: ReactNode }) {
     const d = msg.mediaData;
     // Old saved quotes may still include "original | translation".
     const originalPreview = d?.quotePreview
@@ -1824,7 +1853,7 @@ function QuoteBubble({ msg, quotedSenderName, displayContent, defaultTranslation
                     {quotedSenderName && <><strong>{quotedSenderName}:</strong>{" "}</>}{originalPreview}
                 </div>
             )}
-            {msg.content && <TextBubble content={displayContent ?? msg.content} defaultTranslationExpanded={defaultTranslationExpanded} />}
+            {msg.content && <TextBubble content={displayContent ?? msg.content} defaultTranslationExpanded={defaultTranslationExpanded} inlineKktMeta={inlineKktMeta} />}
         </div>
     );
 }
@@ -2606,8 +2635,9 @@ function VoiceMessageBubble({ msg, characterId, onUpdate, defaultTranslationExpa
     });
 
     return (
-        <div className="voice-msg-bubble" onClick={handlePlay} title={playError || undefined}
-            style={{ minWidth: `${Math.min(60 + duration * 8, 220)}px` }}
+        <div className="voice-msg-bubble" onClick={handlePlay}
+            data-voice-seconds={duration}
+            style={{ width: `${voiceBubbleWidth(duration)}px`, minWidth: 0, maxWidth: "100%", "--chat-voice-seconds": duration } as CSSProperties}
         >
             <div className="voice-msg-icon-shell">
                 <div className="voice-msg-icon">

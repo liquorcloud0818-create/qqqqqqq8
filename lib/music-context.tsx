@@ -7,6 +7,7 @@ import { getAudioBlob, markTrackPlayed, updateTrackMeta } from "./music-storage"
 import { findPlayableMatch, getNeteaseLyrics, getNeteasePlayUrl, getNeteasePlayInfo, getNeteaseSongDetail } from "./music-service";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 import { registerMusicControlBridge } from "./music-control-bridge";
+import { syncSharedMusicPosition } from "./chat-storage";
 import { consumeListenTrackActor, recordListenTrack } from "./together-listening";
 
 // ── Types ──
@@ -97,6 +98,17 @@ function persistQueue(q: MusicTrack[]): void {
 export function MusicProvider({ children }: { children: ReactNode }) {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const blobUrlRef = useRef<string | null>(null);
+    const sharedSingleRef = useRef(false);
+    const activeTrackRef = useRef<MusicTrack | null>(null);
+    const requestRef = useRef(0);
+    const resolveRequestRef = useRef(0);
+    const lastSavedRef = useRef(0);
+    const pendingSeekRef = useRef<{trackId:string;time:number} | null>(null);
+    const flushCardProgress = useCallback(() => {
+        const audio=audioRef.current,track=activeTrackRef.current;
+        if(audio && track) syncSharedMusicPosition(track.id,audio.currentTime,Number.isFinite(audio.duration)?audio.duration:track.duration);
+    },[]);
+
 
     const [currentTrack, setCurrentTrack] = useState<MusicTrack | null>(null);
     useEffect(() => { if (currentTrack) recordListenTrack(currentTrack, consumeListenTrackActor()); }, [currentTrack?.id]);
@@ -127,17 +139,23 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
         audio.addEventListener("timeupdate", () => {
             setCurrentTime(audio.currentTime);
+            if(Date.now()-lastSavedRef.current>4000){lastSavedRef.current=Date.now();flushCardProgress();}
         });
         audio.addEventListener("loadedmetadata", () => {
             setDuration(audio.duration || 0);
+            const pending=pendingSeekRef.current;
+            if(pending && activeTrackRef.current?.id===pending.trackId){audio.currentTime=Math.min(pending.time,audio.duration || pending.time);setCurrentTime(audio.currentTime);pendingSeekRef.current=null;}
         });
         audio.addEventListener("ended", () => {
             handleTrackEnd();
         });
-        audio.addEventListener("pause", () => setIsPlaying(false));
+        audio.addEventListener("pause", () => {setIsPlaying(false);flushCardProgress();});
+        window.addEventListener("pagehide",flushCardProgress);
         audio.addEventListener("play", () => setIsPlaying(true));
 
         return () => {
+            flushCardProgress();
+            window.removeEventListener("pagehide",flushCardProgress);
             audio.pause();
             audio.src = "";
             if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
@@ -146,6 +164,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const handleTrackEnd = useCallback(() => {
+        if (sharedSingleRef.current) { setIsPlaying(false); flushCardProgress(); return; }
         setCurrentTrack(prev => {
             setQueueRaw(q => {
                 if (q.length === 0) return q;
@@ -190,23 +209,26 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
-    const loadAndPlay = useCallback(async (track: MusicTrack) => {
+    const loadAndPlay = useCallback(async (track: MusicTrack, options?: {single?:boolean;startAt?:number}) => {
         const audio = audioRef.current;
         if (!audio) return;
 
-        cleanupBlobUrl();
+        ++resolveRequestRef.current;
+        const request=++requestRef.current;
+        flushCardProgress();
         audio.pause();
+        cleanupBlobUrl();
 
         // Netease tracks: fetch play URL from API
         if (track.id.startsWith("netease_")) {
             const nid = parseInt(track.id.replace("netease_", ""), 10);
             const playUrl = await getNeteasePlayUrl(nid);
-            if (!playUrl) return;
+            if (!playUrl || request!==requestRef.current) return;
             audio.src = playUrl;
         } else {
             // Local tracks: load blob from IndexedDB
             const blob = await getAudioBlob(track.id);
-            if (!blob) return;
+            if (!blob || request!==requestRef.current) return;
             const url = URL.createObjectURL(blob);
             blobUrlRef.current = url;
             audio.src = url;
@@ -215,15 +237,20 @@ export function MusicProvider({ children }: { children: ReactNode }) {
             track = { ...track, lastPlayedAt: playedAt };
         }
 
+        activeTrackRef.current=track;
+        sharedSingleRef.current=options?.single===true;
+        pendingSeekRef.current=options?.startAt ? {trackId:track.id,time:options.startAt} : null;
         setCurrentTrack(track);
+        setDuration(track.duration || 0);
         setCurrentTime(0);
 
         try {
+            if(options?.startAt && audio.readyState>0){audio.currentTime=Math.min(options.startAt,audio.duration||options.startAt);pendingSeekRef.current=null;}
             await audio.play();
         } catch {
             // Autoplay blocked — user interaction needed
         }
-    }, [cleanupBlobUrl]);
+    }, [cleanupBlobUrl,flushCardProgress]);
 
     const playTrack = useCallback((track: MusicTrack) => {
         setFloatDismissed(false);
@@ -231,17 +258,25 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     }, [loadAndPlay]);
 
     /** Play from a direct URL (for online streaming) */
-    const playUrl = useCallback((url: string, track: MusicTrack) => {
+    const playUrl = useCallback((url: string, track: MusicTrack, options?: {single?:boolean;startAt?:number}) => {
         const audio = audioRef.current;
         if (!audio) return;
         setFloatDismissed(false);
-        cleanupBlobUrl();
+        ++requestRef.current;
+        ++resolveRequestRef.current;
+        flushCardProgress();
         audio.pause();
+        cleanupBlobUrl();
         audio.src = url;
+        activeTrackRef.current=track;
+        sharedSingleRef.current=options?.single===true;
+        pendingSeekRef.current=options?.startAt ? {trackId:track.id,time:options.startAt} : null;
         setCurrentTrack(track);
+        setDuration(track.duration || 0);
         setCurrentTime(0);
+        if(options?.startAt && audio.readyState>0){audio.currentTime=Math.min(options.startAt,audio.duration||options.startAt);pendingSeekRef.current=null;}
         audio.play().catch(() => {});
-    }, [cleanupBlobUrl]);
+    }, [cleanupBlobUrl,flushCardProgress]);
 
     const pause = useCallback(() => {
         audioRef.current?.pause();
@@ -292,10 +327,14 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         const audio = audioRef.current;
         const maxDuration = Number.isFinite(audio?.duration) && audio!.duration > 0
             ? audio!.duration
-            : duration;
+            : (activeTrackRef.current?.duration || duration);
         const clamped = Math.max(0, Math.min(time, maxDuration > 0 ? maxDuration : time));
         setCurrentTime(clamped);
-        if (audio) audio.currentTime = clamped;
+        if (audio) {
+            if(audio.readyState===0 && activeTrackRef.current) pendingSeekRef.current={trackId:activeTrackRef.current.id,time:clamped};
+            else audio.currentTime=clamped;
+            if(activeTrackRef.current) syncSharedMusicPosition(activeTrackRef.current.id,clamped,maxDuration);
+        }
     }, [duration]);
 
     const setVolume = useCallback((vol: number) => {
@@ -311,18 +350,23 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const stop = useCallback(() => {
+        ++requestRef.current; ++resolveRequestRef.current;
+        flushCardProgress();
         const audio = audioRef.current;
         if (audio) {
             audio.pause();
             audio.currentTime = 0;
         }
         cleanupBlobUrl();
+        sharedSingleRef.current=false;
+        activeTrackRef.current=null;
+        pendingSeekRef.current=null;
         setCurrentTrack(null);
         setIsPlaying(false);
         setCurrentTime(0);
         setDuration(0);
         setShowFullPlayer(false);
-    }, [cleanupBlobUrl]);
+    }, [cleanupBlobUrl,flushCardProgress]);
 
     const removeFromQueue = useCallback((trackId: string) => {
         setQueueRaw(prev => {
@@ -340,7 +384,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     const openFullPlayer = useCallback(() => { setFloatDismissed(false); setShowFullPlayer(true); }, []);
     const closeFullPlayer = useCallback(() => setShowFullPlayer(false), []);
 
-    const playResolvedTrack = useCallback(async (track: MusicTrack): Promise<{ ok: boolean; message: string; track?: MusicTrack }> => {
+    const playResolvedTrack = useCallback(async (track: MusicTrack, options?: {single?:boolean;startAt?:number}): Promise<{ ok: boolean; message: string; track?: MusicTrack }> => {
+        const request=++resolveRequestRef.current;
         setFloatDismissed(false);
         setQueueRaw(prev => prev.some(item => item.id === track.id) ? prev : [track, ...prev]);
 
@@ -360,16 +405,20 @@ export function MusicProvider({ children }: { children: ReactNode }) {
                 coverUrl: detail?.coverUrl || track.coverUrl,
                 lyrics: lyrics || track.lyrics,
             };
-            playUrl(url, resolvedTrack);
+            if(request!==resolveRequestRef.current)return {ok:false,message:"播放请求已切换"};
+            playUrl(url, resolvedTrack, options);
             return { ok: true, message: `正在播放「${resolvedTrack.title}」`, track: resolvedTrack };
         }
 
-        playTrack(track);
+        await loadAndPlay(track, options);
+        if(activeTrackRef.current?.id!==track.id)return {ok:false,message:"没有找到可播放的音乐"};
         return { ok: true, message: `正在播放「${track.title}」`, track };
-    }, [playTrack, playUrl]);
+    }, [loadAndPlay, playUrl]);
 
     const playByQuery = useCallback(async (query: string, artist?: string): Promise<{ ok: boolean; message: string; track?: MusicTrack }> => {
+        const request=++resolveRequestRef.current;
         const found = await findPlayableMatch(query, artist);
+        if(request!==resolveRequestRef.current)return {ok:false,message:"播放请求已切换"};
         if (!found) return { ok: false, message: "没有找到可播放的音乐" };
         const { result, playUrl: onlineUrl } = found;
         if (result.source === "local" && result.localTrack) {
@@ -391,6 +440,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
                 liked: false,
                 addedAt: new Date().toISOString(),
             };
+            if(request!==resolveRequestRef.current)return {ok:false,message:"播放请求已切换"};
             setFloatDismissed(false);
             setQueueRaw(prev => prev.some(item => item.id === track.id) ? prev : [track, ...prev]);
             playUrl(onlineUrl, track);
@@ -431,16 +481,18 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         registerMusicControlBridge({
             getState: () => ({
-                currentTrack,
-                isPlaying,
-                currentTime,
-                duration,
+                currentTrack: activeTrackRef.current,
+                isPlaying: audioRef.current ? !audioRef.current.paused : isPlaying,
+                currentTime: audioRef.current?.currentTime ?? currentTime,
+                duration: Number.isFinite(audioRef.current?.duration) ? audioRef.current!.duration : duration,
                 playMode,
                 queue,
                 volume,
             }),
             playTrack: playResolvedTrack,
             playByQuery,
+            seek,
+            setSingleTrackPlayback: () => { sharedSingleRef.current=true; },
             addToQueue,
             pause,
             resume,
@@ -452,7 +504,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         return () => registerMusicControlBridge(null);
     }, [
         currentTrack, isPlaying, currentTime, duration, playMode, queue, volume,
-        playResolvedTrack, playByQuery, addToQueue, pause, resume, stop, next, prev, setPlayMode,
+        playResolvedTrack, playByQuery, seek, addToQueue, pause, resume, stop, next, prev, setPlayMode,
     ]);
 
     const controlsValue = useMemo<MusicControlsValue>(() => ({

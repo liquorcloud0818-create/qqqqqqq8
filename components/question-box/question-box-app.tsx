@@ -1,4 +1,5 @@
 "use client";
+import {useSnapshotNavigation} from "@/lib/shared-snapshot-navigation";
 import { AppNotificationSetting, useSocialNotices } from "@/components/social/app-notifications";
 import { readSocialTarget } from "@/lib/social-notifications";
 
@@ -37,6 +38,7 @@ async function imageData(file: File, cover: boolean): Promise<string> {
 
 export function QuestionBoxApp({ onClose, onNotice }: { onClose: () => void; onNotice?: (text: string) => void }) {
   const [state, setState] = useState<BoxState>(() => loadBoxState());
+ useSnapshotNavigation('question_box',target=>{const source=loadBoxState().sessions.find(box=>box.id===(target.parentId||target.id));if(!source?.questions.some(q=>q.id===target.id)){onNotice?.('原问题已删除，已分享的快照仍可查看');return;}setBoxId(source.id);setBoxOrigin(source.endsAt>Date.now()?'home':'archive');setPage('box');window.setTimeout(()=>document.getElementById('question-'+target.id)?.scrollIntoView({block:'center'}),100);});
   useEffect(()=>{const fn=(e:Event)=>{const n=(e as CustomEvent).detail;if(n.app==='question_box'){setBoxId(n.targetId);setPage('box');}};window.addEventListener('social-notification-open',fn);return()=>window.removeEventListener('social-notification-open',fn);},[]);
   const [page, setPage] = useState<Page>("home");
   const [boxOrigin, setBoxOrigin] = useState<"home" | "archive">("home");

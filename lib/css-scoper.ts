@@ -87,6 +87,13 @@ export function scopeSessionCSS(raw: string, scopeSelector: string): string {
         // Media queries and other container rules — recurse into body
         if (atName === "media" || atName === "supports" || atName === "layer") {
           const braceStart = raw.indexOf("{", i);
+          // @layer may only declare order. It must not swallow the next rule.
+          const semiEnd = atName === "layer" ? raw.indexOf(";", i) : -1;
+          if (semiEnd !== -1 && (braceStart === -1 || semiEnd < braceStart)) {
+            result.push(raw.slice(i, semiEnd + 1));
+            i = semiEnd + 1;
+            continue;
+          }
           if (braceStart === -1) {
             result.push(raw.slice(i));
             break;
@@ -116,8 +123,7 @@ export function scopeSessionCSS(raw: string, scopeSelector: string): string {
     const body = raw.slice(braceStart, blockEnd + 1);
 
     // Scope each selector in comma-separated list
-    const scopedSelector = selectorText
-      .split(",")
+    const scopedSelector = splitSelectorList(selectorText)
       .map((sel) => scopeSingleSelector(sel.trim(), scopeSelector))
       .join(", ");
 
@@ -126,6 +132,23 @@ export function scopeSessionCSS(raw: string, scopeSelector: string): string {
   }
 
   return result.join("");
+}
+
+/** Commas inside :is(), :has(), attribute selectors or quoted strings are not list separators. */
+function splitSelectorList(value: string): string[] {
+  const parts: string[] = [];
+  let start = 0, depth = 0, quote = "";
+  for (let i = 0; i < value.length; i++) {
+    const char = value[i];
+    if (char === "\\") { i++; continue; }
+    if (quote) { if (char === quote) quote = ""; continue; }
+    if (char === '"' || char === "'") { quote = char; continue; }
+    if (char === "(" || char === "[") depth++;
+    else if (char === ")" || char === "]") depth--;
+    else if (char === "," && depth === 0) { parts.push(value.slice(start, i)); start = i + 1; }
+  }
+  parts.push(value.slice(start));
+  return parts;
 }
 
 function scopeSingleSelector(sel: string, scope: string): string {
@@ -139,7 +162,7 @@ function scopeSingleSelector(sel: string, scope: string): string {
   if (/^(body|html|:root)\s/i.test(sel)) {
     return scope + " " + sel.replace(/^(body|html|:root)\s*/i, "");
   }
-  if (/^(body|html|:root)\./i.test(sel)) {
+  if (/^(body|html|:root)(?=[.#[:>+~])/i.test(sel)) {
     return scope + sel.replace(/^(body|html|:root)/i, "");
   }
   // 选择器就是 scope 本身（如用户写 .chat-app { --var: ... }）：直接返回 scope，

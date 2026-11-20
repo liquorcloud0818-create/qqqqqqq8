@@ -5052,3 +5052,7 @@
 .together-history p span { opacity: .65; }
 .together-sessions { display: grid; gap: 6px; }
 .together-sessions button { border: 0; border-radius: 10px; text-align: left; padding: 10px; background: rgba(255,255,255,.08); }
+
+/* Music sharing uses a compact search field and an explicit group send action. */
+.mp-share-search {font-size:calc(13px * var(--app-text-scale,1));line-height:1.4;}
+.mp-share-sheet .chat-share-group-action {margin-left:auto;flex:none;border:1px solid var(--c-music-surface-solid);border-radius:999px;padding:7px 13px;font-size:calc(12px * var(--app-text-scale,1));font-weight:600;}

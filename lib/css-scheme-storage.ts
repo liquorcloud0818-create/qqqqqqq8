@@ -1,3 +1,4 @@
+import { BUILTIN_CHAT_CSS_SCHEMES } from "./builtin-chat-css";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 // lib/css-scheme-storage.ts
 // CSS 方案存储 — 保存/加载/删除用户的 CSS 方案
@@ -11,6 +12,7 @@ export type CSSScheme = {
   css: string;
   target: string; // "global" | "chat_app" | "chat_session" | "story" | "music" | "calendar"
   createdAt: string;
+  builtIn?: boolean;
 };
 
 function loadAll(): CSSScheme[] {
@@ -26,8 +28,9 @@ function saveAll(schemes: CSSScheme[]) {
 }
 
 /** Get all schemes for a given CSS target */
-export function getSchemes(target: string): CSSScheme[] {
-  return loadAll().filter(s => s.target === target);
+export function getSchemes(target: string, includeChatBuiltins = false): CSSScheme[] {
+  const saved = loadAll().filter(s => s.target === target);
+  return includeChatBuiltins && target === "chat_session" ? [...BUILTIN_CHAT_CSS_SCHEMES, ...saved] : saved;
 }
 
 /** Save current CSS as a named scheme */

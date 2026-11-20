@@ -280,7 +280,7 @@ export async function getNeteaseLyrics(songId: number): Promise<string> {
 }
 
 /** Get song detail (cover, artist ids, etc.) */
-export async function getNeteaseSongDetail(songId: number): Promise<{ coverUrl?: string; name?: string; artists?: string; artistList?: { id: number; name: string }[]; album?: string } | null> {
+export async function getNeteaseSongDetail(songId: number): Promise<{ coverUrl?: string; name?: string; artists?: string; duration?: number; artistList?: { id: number; name: string }[]; album?: string } | null> {
     const base = neteaseBase();
     if (!base) return null;
     try {
@@ -290,6 +290,7 @@ export async function getNeteaseSongDetail(songId: number): Promise<{ coverUrl?:
         if (!song) return null;
         return {
             coverUrl: secureHttpUrl(song.al?.picUrl),
+            duration: Number(song.dt || song.duration || 0) / 1000,
             name: song.name,
             artists: (song.ar || []).map((a: any) => a.name).join("/"),
             artistList: (song.ar || []).filter((a: any) => a?.id && a?.name).map((a: any) => ({ id: a.id, name: a.name })),

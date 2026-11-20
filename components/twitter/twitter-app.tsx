@@ -1,4 +1,5 @@
 "use client";
+import {useSnapshotNavigation} from "@/lib/shared-snapshot-navigation";
 
 import {TwitterRecipientPicker,TwitterFrozenCard} from "./twitter-sharing";
 import {knownTwitterAccount,twitterRecognizes,twitterMessagePreview} from "@/lib/twitter-storage";
@@ -177,6 +178,7 @@ export function TwitterApp({ onClose, onNotice: externalNotice }: Props) {
   const [dmFilter, setDmFilter] = useState<"all" | "strangers" | "following">("all");
   const [dmSearchOpen, setDmSearchOpen] = useState(false);
   const [dmSearch, setDmSearch] = useState("");
+ useSnapshotNavigation('twitter',target=>{if(state.posts.some(p=>p.id===target.id))setThreadId(target.id);else onNotice?.('原帖已删除，已分享的快照仍可查看');});
   useEffect(()=>{const fn=(e:Event)=>{const n=(e as CustomEvent).detail;if(n.app!=='twitter')return;if(n.accountId)setActiveAccount(n.accountId);if(n.targetType==='dm'){setConversationId(n.targetId);setTab('messages');}else setThreadId(n.targetId);};window.addEventListener('social-notification-open',fn);return()=>window.removeEventListener('social-notification-open',fn);},[]);
   const [sharePostId,setSharePostId]=useState<string|undefined>(undefined);
   const [dmConfirmation, setDmConfirmation] = useState<{ characterId: string; accountId: string } | null>(null);
