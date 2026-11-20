@@ -3330,8 +3330,17 @@ export function XiaohongshuApp({ onClose, onNotice: externalNotice, visible = tr
                               : [...prev.participantCharacterIds, character.id],
                           }))}
                         >
-                          <span>{character.avatar ? <img src={character.avatar} alt="" /> : character.name.slice(0, 1)}</span>
-                          <em>{character.name}</em>
+                          <span>
+  {characterAvatarMap.get(character.id) ? (
+    <img src={characterAvatarMap.get(character.id)!} alt="" />
+  ) : (
+    (characterPlatformProfiles[character.id]?.nickname?.trim() || character.name).slice(0, 1)
+  )}
+</span>
+<em>
+  {characterPlatformProfiles[character.id]?.nickname?.trim() ||
+    resolveCharacterXiaohongshuDisplayName(character)}
+</em>
                         </button>
                       );
                     })
