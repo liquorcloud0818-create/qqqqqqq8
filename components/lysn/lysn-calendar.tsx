@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { loadLysn, localDay, subscriptionDays, type LysnState } from "@/lib/lysn-storage";
 import { LYSN_MILESTONES } from "@/lib/lysn-celebrations";
 import { getChatImageFromIndexedDB } from "@/lib/chat-asset-storage";
@@ -77,12 +77,20 @@ export function LysnCelebrationCardView({ event, artistName, avatar, letter, loa
     return () => { alive = false; };
   }, [avatar]);
   return <div className={styles.backdrop} onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
-    <section role="dialog" aria-modal="true" aria-label={event.kind === "birthday" ? "生日留言" : "订阅纪念"} className={event.kind === "birthday" ? styles.birthday : styles.anniversary}>
-      <button type="button" aria-label="关闭卡片" className={styles.close} onClick={onClose}><X size={21}/></button>
+    <section role="dialog" aria-modal="true" aria-label={event.kind === "birthday" ? "生日留言" : "订阅纪念"} className={event.kind === "birthday" ? styles.birthday : styles.anniversary}
+      tabIndex={0}
+      onClick={onClose}
+      onKeyDown={e => {
+        if (e.key === "Escape" || (e.target === e.currentTarget && (e.key === "Enter" || e.key === " "))) {
+          e.preventDefault();
+          onClose();
+        }
+      }}>
+      <span className="sr-only">点击卡片任意位置关闭</span>
       {event.kind === "birthday" ? <>
         <div className={styles.portrait}>{portraitUrl ? <img src={portraitUrl} alt=""/> : artistName.slice(0, 1)}</div>
         <div className={styles.from}><i>from.</i> {artistName}</div>
-        <div className={styles.letter}><span>✦ &nbsp; Birthday note &nbsp; ✦</span>{loading ? <p>正在写生日留言…</p> : error ? <button type="button" onClick={onRetry}>{error} · 重试</button> : <><p>{letter?.original || ""}</p><small>{letter?.translated || ""}</small></>}<img className={styles.cake} src="/lysn-assets/birthday-cake.webp" alt="粉色蝴蝶结生日蛋糕"/></div>
+        <div className={styles.letter}><span>✦ &nbsp; Birthday note &nbsp; ✦</span>{loading ? <p>正在写生日留言…</p> : error ? <button type="button" onClick={e => { e.stopPropagation(); onRetry?.(); }}>{error} · 重试</button> : <><p>{letter?.original || ""}</p><small>{letter?.translated || ""}</small></>}<img className={styles.cake} src="/lysn-assets/birthday-cake.webp" alt="粉色蝴蝶结生日蛋糕"/></div>
       </> : <>
         <div className={styles.anniversaryTitle}>♥ &nbsp; HAPPY &nbsp; ♥<strong>bubble</strong><span>ANNIVERSARY</span></div>
         <div className={styles.cartoonNumber}>{event.days}<span>DAYS</span></div>
