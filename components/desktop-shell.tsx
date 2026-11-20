@@ -153,6 +153,7 @@ import {
   ensureNativeWorldlineIcon,
   ensureNativeNovelIcon,
 } from "@/lib/desktop-layout-storage";
+import { ensurePrivateLianhuaIcon } from "@/lib/lianhua-desktop-integration";
 import { WidgetRenderer } from "@/components/widgets/widget-renderer";
 import type { DIYWidgetTemplate } from "@/lib/widget-types";
 import { DebugPromptPanel } from "@/components/debug-prompt-panel";
@@ -1627,6 +1628,33 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets, initialL
   dockRef.current = dock;
   const foldersRef = useRef(folders);
   foldersRef.current = folders;
+  // 蓮華仅在当前设备已导入安装包时加入桌面
+useEffect(() => {
+  if (!desktopReady) return;
+
+  const syncPrivateLianhuaIcon = () => {
+    const result = ensurePrivateLianhuaIcon(
+      layoutRef.current,
+      widgetsRef.current,
+      dockRef.current,
+      foldersRef.current,
+    );
+
+    if (!result.changed) return;
+
+    const nextLayout = cloneDesktopLayout(result.layout, widgetsRef.current);
+    layoutRef.current = nextLayout;
+    setLayout(nextLayout);
+    kvSet(ICON_LAYOUT_STORAGE_KEY, JSON.stringify(nextLayout));
+  };
+
+  syncPrivateLianhuaIcon();
+  window.addEventListener("lianhua-private-package-installed", syncPrivateLianhuaIcon);
+
+  return () => {
+    window.removeEventListener("lianhua-private-package-installed", syncPrivateLianhuaIcon);
+  };
+}, [desktopReady]);
 
   const activeIconSkins = useMemo(() => resolveActiveIconSkins(draftTheme), [draftTheme]);
   const renderNoticeIcon = (notice: DesktopMessageNotice, className: string) => {
