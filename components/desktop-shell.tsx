@@ -52,7 +52,7 @@ import { ChatPluginPageBoundary } from "@/components/chat/chat-plugin-page-bound
 import { ResourceHubApp } from "@/components/resource-hub/resource-hub-app";
 import "@/lib/qa-error-log";
 import { DiaryApp } from "@/components/diary/diary-app";
-import { XiaohongshuApp } from "@/components/xiaohongshu/xiaohongshu-app";
+import { XiaohongshuApp } from "@/components/xiaohongshu-app";
 import { StoryApp } from "@/components/story/story-app";
 import ReadingApp from "@/components/reading/reading-app";
 import MapApp from "@/components/map/map-app";
